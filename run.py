@@ -18,5 +18,13 @@ def main():
     app = ExcelToSchemasGUI(root)
     root.mainloop()
 
+def run_cli():
+    from main import main as run_main
+    run_main()
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == '--cli':
+        run_cli()
+    else:
+        main()

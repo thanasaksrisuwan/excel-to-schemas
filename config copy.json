@@ -1,0 +1,16 @@
+{
+    "database": {
+        "driver": "ODBC Driver 17 for SQL Server",
+        "server": "",
+        "database": "",
+        "username": "",
+        "password": ""
+    },
+    "file_path": "",
+    "batch_size": 1000,
+    "timeout": 30,
+    "retry_attempts": 3,
+    "log_level": "INFO",
+    "selected_sheet": "",
+    "export_type": "database"
+}

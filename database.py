@@ -120,8 +120,19 @@ def save_failed_batch(batch):
     batch.to_csv("failed_batch.csv", index=False)
     logging.info("Failed batch saved for recovery.")
 
+def recover_failed_batches(connection, table_name, config):
+    try:
+        failed_batch = pd.read_csv("failed_batch.csv")
+        if not failed_batch.empty:
+            logging.info("Recovering failed batch...")
+            insert_data_into_table(connection, table_name, failed_batch, 
+                                 batch_size=config['batch_size'])
+            logging.info("Failed batch recovery completed.")
+    except FileNotFoundError:
+        logging.info("No failed batch found for recovery.")
+
 def generate_sql_script(table_name, schema, table_info, data_df):
-    """Generate SQL script for table creation and data insertion"""
+    """Generate SQL script for table creation"""
     sql_script = []
     
     # Drop table if exists
@@ -152,24 +163,6 @@ def generate_sql_script(table_name, schema, table_info, data_df):
 @level0type = N'SCHEMA', @level0name = 'dbo',
 @level1type = N'TABLE', @level1name = N'{table_name}';"""
         sql_script.append(desc_query)
-        sql_script.append("GO")
-        sql_script.append("")
-    
-    # Insert data
-    if not data_df.empty:
-        sql_script.append(f"-- Insert data into {table_name}")
-        columns = ", ".join([f"[{col}]" for col in data_df.columns])
-        for _, row in data_df.iterrows():
-            values = []
-            for val in row:
-                if pd.isna(val):
-                    values.append("NULL")
-                elif isinstance(val, (int, float)):
-                    values.append(str(val))
-                else:
-                    values.append(f"N'{str(val).replace(chr(39), chr(39)+chr(39))}'")
-            values_str = ", ".join(values)
-            sql_script.append(f"INSERT INTO [{table_name}] ({columns}) VALUES ({values_str});")
         sql_script.append("GO")
         sql_script.append("")
     

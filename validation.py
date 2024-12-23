@@ -51,6 +51,15 @@ def validate_and_clean_data(df):
     # จัดการ foreign key
     df['is_foreign_key'] = df['Key'].apply(lambda x: str(x).upper() == 'FK' if pd.notnull(x) else False)
     
+    # Handle special characters in 'Name' column
+    df['Name'] = df['Name'].apply(lambda x: re.sub(r'[^a-zA-Z0-9_]', '', str(x)))
+    
+    # Remove duplicates
+    df = df.drop_duplicates(subset=['Name'])
+    
+    # Format cleanup process
+    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    
     logging.info("การตรวจสอบและทำความสะอาดข้อมูลเสร็จสิ้น")
     return df
 
@@ -73,27 +82,25 @@ def map_data_types(df):
     for _, row in df.iterrows():
         col_name = row['Name']
         sql_type = str(row['Type']).lower()
-        length = row['Len'] if pd.notnull(row['Len']) else None
+        length = int(row['Len']) if pd.notnull(row['Len']) else None
         nullable = row['Nul'].upper() == 'Y' if pd.notnull(row['Nul']) else True
         
         # จัดการกรณีประเภท SQL เฉพาะ
         if sql_type in ['nvarchar', 'varchar', 'nchar', 'char']:
             # ตรวจสอบให้แน่ใจว่าความยาวถูกต้อง
-            if not length or not isinstance(length, (int, float)) or length <= 0:
+            if not length or not isinstance(length, int) or length <= 0:
                 length = 'MAX'
-            else:
-                length = int(length)
             type_def = f"{type_mapping[sql_type]}({length})"
         elif sql_type == 'decimal':
             # ใช้ precision และ scale เริ่มต้นถ้าไม่ได้ระบุ
-            precision = int(length) if length and isinstance(length, (int, float)) else 18
+            precision = int(length) if length and isinstance(length, int) else 18
             scale = int(row['Dec']) if pd.notnull(row.get('Dec')) else 0
             if scale > precision:
                 scale = precision
             type_def = f"{type_mapping[sql_type]}({precision},{scale})"
         elif sql_type == 'int':
             # ตรวจสอบว่าความยาวบ่งบอกถึง bigint หรือไม่
-            if length and isinstance(length, (int, float)) and length > 9:
+            if length and isinstance(length, int) and length > 9:
                 type_def = 'BIGINT'
             else:
                 type_def = type_mapping[sql_type]
@@ -107,6 +114,10 @@ def map_data_types(df):
         if pd.notnull(row.get('Def')):
             default_value = row['Def']
             if sql_type in ['nvarchar', 'varchar', 'nchar', 'char']:
+                default_value = f"N'{default_value}'"
+            elif sql_type == 'bit':
+                default_value = '1' if default_value.upper() == 'Y' else '0'
+            else:
                 default_value = f"'{default_value}'"
             type_def += f" DEFAULT {default_value}"
             
@@ -173,9 +184,9 @@ def parse_length_precision(type_str: str, length: Optional[str], decimal: Option
         return type_str
     
     if type_str.lower() == 'decimal' and not pd.isna(decimal):
-        return f"{type_str}({length}, {decimal})"
+        return f"{type_str}({int(length)}, {int(decimal)})"
     elif not pd.isna(length):
-        return f"{type_str}({length})"
+        return f"{type_str}({int(length)})"
     
     return type_str
 
@@ -195,8 +206,7 @@ def generate_schema(df: pd.DataFrame) -> str:
             break
 
     # Generate CREATE TABLE statement
-    sql_parts = [f"-- Table: {table_info['desc']}\n"]
-    sql_parts.append(f"CREATE TABLE {table_info['name']} (")
+    sql_parts = [f"CREATE TABLE {table_info['name']} ("]
     
     # Track primary and foreign keys
     pk_columns = []
@@ -227,7 +237,7 @@ def generate_schema(df: pd.DataFrame) -> str:
         sql_type = parse_length_precision(sql_type, row['Len'], row['Dec'])
         
         # Build column definition
-        column_def = [column_name, sql_type]
+        column_def = [f"[{column_name}]", sql_type]
         
         # Add NULL/NOT NULL constraint
         is_nullable = str(row['Nul']).upper() == 'Y'
@@ -235,10 +245,14 @@ def generate_schema(df: pd.DataFrame) -> str:
         
         # Handle default value
         if pd.notna(row['Def']): 
-            column_def.append(f"DEFAULT {row['Def']}")
-        
-        # Add column description if present
-        column_desc = f"-- {row['Desc']}" if pd.notna(row['Desc']) else ""
+            default_value = row['Def']
+            if sql_type in ['NVARCHAR', 'VARCHAR', 'NCHAR', 'CHAR']:
+                default_value = f"N'{default_value}'"
+            elif sql_type == 'BIT':
+                default_value = '1' if default_value.upper() == 'Y' else '0'
+            else:
+                default_value = f"'{default_value}'"
+            column_def.append(f"DEFAULT {default_value}")
         
         # Track primary and foreign keys
         if str(row.get('Key', '')).upper() == 'PK':
@@ -246,7 +260,7 @@ def generate_schema(df: pd.DataFrame) -> str:
         elif str(row.get('Key', '')).upper() == 'FK':
             fk_constraints.append(column_name)
         
-        columns.append(f"    {' '.join(column_def)} {column_desc}")
+        columns.append(f"    {' '.join(column_def)}")
     
     # Add columns to SQL
     sql_parts.append(',\n'.join(columns))
@@ -262,13 +276,6 @@ def generate_schema(df: pd.DataFrame) -> str:
         sql_parts.append(fk_constraint)
     
     sql_parts.append(");")
-    
-    # Add table description
-    sql_parts.append(f"\nEXEC sp_addextendedproperty")
-    sql_parts.append(f"    @name = N'MS_Description',")
-    sql_parts.append(f"    @value = N'{table_info['desc']}',")
-    sql_parts.append(f"    @level0type = N'SCHEMA', @level0name = dbo,")
-    sql_parts.append(f"    @level1type = N'TABLE', @level1name = {table_info['name']};")
     
     # Add column descriptions
     for _, row in df.iterrows():

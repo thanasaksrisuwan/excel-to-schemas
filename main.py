@@ -2,7 +2,7 @@ import os
 import logging
 import json
 import pandas as pd
-from database import connect_to_database, create_sql_table, insert_data_into_table
+from database import connect_to_database, create_sql_table
 from excel import read_excel_file
 from validation import validate_and_clean_data, map_data_types
 
@@ -96,18 +96,13 @@ def main(progress_callback=None):
             )
             return {'sql_script': sql_script}
         else:
-            # Import to database
+            # Create table in database
             connection = connect_to_database(config['database'])
             if not connection:
                 raise ConnectionError("Failed to connect to database")
 
             result = process_sheet(config)
             create_sql_table(connection, result['table_name'], result['schema'], result['table_info'])
-            insert_data_into_table(connection, result['table_name'], result['df'],
-                                 batch_size=config['batch_size'],
-                                 progress_callback=progress_callback)
-            recover_failed_batches(connection, result['table_name'], config)
-            generate_import_summary(result['df'])
 
     except FileNotFoundError as e:
         logging.error(f"File not found: {e}")
@@ -131,23 +126,6 @@ def validate_config(config):
             raise ValueError(f"Excel file not found: {config['file_path']}")
     else:
         logging.warning("No Excel file path specified in configuration")
-
-def recover_failed_batches(connection, table_name, config):
-    try:
-        failed_batch = pd.read_csv("failed_batch.csv")
-        if not failed_batch.empty:
-            logging.info("Recovering failed batch...")
-            insert_data_into_table(connection, table_name, failed_batch, 
-                                 batch_size=config['batch_size'])
-            logging.info("Failed batch recovery completed.")
-    except FileNotFoundError:
-        logging.info("No failed batch found for recovery.")
-
-def generate_import_summary(df):
-    total_records = len(df)
-    logging.info(f"Import Summary:")
-    logging.info(f"Total records processed: {total_records}")
-    # Add more summary details as needed
 
 if __name__ == "__main__":
     # Launch GUI if running directly

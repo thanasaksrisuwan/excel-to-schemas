@@ -33,14 +33,7 @@ def read_excel_file(file_path):
             
         # กำหนดคอลัมน์ที่คาดหวังตามลำดับ
         expected_columns = [
-            'Key',      # คอลัมน์ B
-            'Name',     # คอลัมน์ D
-            'Nul',      # คอลัมน์ E
-            'Type',     # คอลัมน์ F
-            'Len',      # คอลัมน์ G
-            'Dec',      # คอลัมน์ H
-            'Def',      # คอลัมน์ J
-            'Desc'      # คอลัมน์ K (คำอธิบาย)
+            'Back', 'Key', 'No', 'Name', 'Nul', 'Type', 'Len', 'Dec', 'Und', 'Def', 'Desc', 'Note', 'TableCode', 'TableName', 'TableDesc', 'TableNote'
         ]
         
         df_dict = {}
@@ -49,11 +42,6 @@ def read_excel_file(file_path):
             try:
                 # อ่านชีต Excel
                 df = pd.read_excel(file_path, sheet_name=sheet_name)
-                
-                # ลบคอลัมน์ A, C, L, M, O, และ P ถ้ามี
-                columns_to_drop = [0, 2, 8, 9, 11, 13, 14]
-                columns_to_drop = [col for col in columns_to_drop if col < len(df.columns)]
-                df = df.drop(df.columns[columns_to_drop], axis=1)
                 
                 # ตรวจสอบว่าจำนวนคอลัมน์ตรงกับจำนวนที่คาดหวังหรือไม่
                 if len(df.columns) != len(expected_columns):
