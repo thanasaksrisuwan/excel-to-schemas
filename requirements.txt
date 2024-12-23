@@ -1,0 +1,5 @@
+# Add project dependencies here
+pandas
+pyodbc
+openpyxl
+tkinter

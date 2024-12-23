@@ -1,0 +1,16 @@
+{
+    "database": {
+        "driver": "ODBC Driver 17 for SQL Server",
+        "server": "localhost",
+        "database": "nack",
+        "username": "usrbmn",
+        "password": "p@ssword"
+    },
+    "file_path": "C:/Users/Nack/Documents/Masterdata/Datadict Master.xlsx",
+    "batch_size": 1000,
+    "timeout": 30,
+    "retry_attempts": 3,
+    "log_level": "INFO",
+    "selected_sheet": "MAS01",
+    "export_type": "database"
+}
