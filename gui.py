@@ -14,6 +14,7 @@ class ExcelToSchemasGUI:
         self.config = self.load_config()
 
         self.create_widgets()
+        self.setup_logging()
 
     def load_config(self):
         config_path = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -148,7 +149,9 @@ class ExcelToSchemasGUI:
         
         tk.Button(button_frame, text="Save Config", command=self.save_config).grid(row=0, column=0, padx=5)
         tk.Button(button_frame, text="Run", command=self.run).grid(row=0, column=1, padx=5)
-        tk.Button(button_frame, text="View Logs", command=self.view_logs).grid(row=0, column=2, padx=5)
+
+        # Remove "View Logs" button
+        # tk.Button(button_frame, text="View Logs", command=self.view_logs).grid(row=0, column=2, padx=5)
 
         # Move log display and progress bar
         self.log_display = scrolledtext.ScrolledText(self.root, width=80, height=20)
@@ -158,6 +161,27 @@ class ExcelToSchemasGUI:
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(self.root, variable=self.progress_var, maximum=100)
         self.progress_bar.grid(row=14, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
+
+    def setup_logging(self):
+        logging.basicConfig(
+            level=getattr(logging, self.config.get('log_level', 'INFO')),
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[self.TkinterHandler(self.log_display)]
+        )
+
+    class TkinterHandler(logging.Handler):
+        def __init__(self, text_widget):
+            super().__init__()
+            self.text_widget = text_widget
+
+        def emit(self, record):
+            msg = self.format(record)
+            def append():
+                self.text_widget.configure(state='normal')
+                self.text_widget.insert(tk.END, msg + '\n')
+                self.text_widget.configure(state='disabled')
+                self.text_widget.yview(tk.END)
+            self.text_widget.after(0, append)
 
     def browse_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
@@ -301,15 +325,6 @@ class ExcelToSchemasGUI:
         self.progress_var.set(value)
         self.update_status("Processing...", f"Progress: {value:.1f}%")
         self.root.update_idletasks()
-
-    def view_logs(self):
-        log_path = 'app.log'
-        if os.path.exists(log_path):
-            with open(log_path, 'r') as log_file:
-                self.log_display.delete(1.0, tk.END)
-                self.log_display.insert(tk.END, log_file.read())
-        else:
-            messagebox.showerror("Error", "Log file not found.")
 
 if __name__ == "__main__":
     root = tk.Tk()
