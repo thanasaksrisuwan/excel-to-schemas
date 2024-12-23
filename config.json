@@ -1,3 +1,4 @@
+// This file should be removed from git tracking
 {
     "database": {
         "driver": "ODBC Driver 17 for SQL Server",

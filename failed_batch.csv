@@ -1,3 +1,4 @@
+# This file should be removed from git tracking
 Key,Name,Nul,Type,Len,Dec,Def,Desc,is_nullable,is_primary_key,is_foreign_key
 Name,Update date,Prefix,Name,Nul,Type,Und,Desc,False,False,False
 Name,Update date,Prefix,Name,Nul,Type,Und,Desc,False,False,False
