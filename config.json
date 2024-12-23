@@ -11,6 +11,6 @@
     "timeout": 30,
     "retry_attempts": 3,
     "log_level": "INFO",
-    "selected_sheet": "MAS01",
-    "export_type": "database"
+    "selected_sheet": "CUS04",
+    "export_type": "script"
 }

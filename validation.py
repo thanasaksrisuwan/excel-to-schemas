@@ -208,10 +208,6 @@ def generate_schema(df: pd.DataFrame) -> str:
     # Generate CREATE TABLE statement
     sql_parts = [f"CREATE TABLE {table_info['name']} ("]
     
-    # Track primary and foreign keys
-    pk_columns = []
-    fk_constraints = []
-    
     # Process columns
     columns = []
     type_mapping = {
@@ -254,26 +250,10 @@ def generate_schema(df: pd.DataFrame) -> str:
                 default_value = f"'{default_value}'"
             column_def.append(f"DEFAULT {default_value}")
         
-        # Track primary and foreign keys
-        if str(row.get('Key', '')).upper() == 'PK':
-            pk_columns.append(column_name)
-        elif str(row.get('Key', '')).upper() == 'FK':
-            fk_constraints.append(column_name)
-        
         columns.append(f"    {' '.join(column_def)}")
     
     # Add columns to SQL
     sql_parts.append(',\n'.join(columns))
-    
-    # Add primary key constraint if exists
-    if pk_columns:
-        pk_constraint = f",\n    CONSTRAINT PK_{table_info['code']} PRIMARY KEY ({', '.join(pk_columns)})"
-        sql_parts.append(pk_constraint)
-    
-    # Add foreign key constraints if exist
-    for fk_col in fk_constraints:
-        fk_constraint = f",\n    CONSTRAINT FK_{table_info['name']}_{fk_col} FOREIGN KEY ({fk_col}) REFERENCES <foreign_table>({fk_col})"
-        sql_parts.append(fk_constraint)
     
     sql_parts.append(");")
     

@@ -142,11 +142,7 @@ def generate_sql_script(table_name, schema, table_info, data_df):
     
     # Create table
     columns = [f"[{col}] {dtype}" for col, dtype in schema.items()]
-    if table_info and table_info.get('primary_keys'):
-        pk_cols = [f"[{col}]" for col in table_info['primary_keys']]
-        if pk_cols:
-            pk_constraint = f"CONSTRAINT [PK_{table_name}] PRIMARY KEY ({','.join(pk_cols)})"
-            columns.append(pk_constraint)
+    # Remove primary key constraint creation
     
     create_table = f"""CREATE TABLE [{table_name}] (
     {',\n    '.join(columns)}
