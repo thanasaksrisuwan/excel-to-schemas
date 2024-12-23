@@ -175,21 +175,6 @@ def get_table_info(df):
             'foreign_keys': []
         }
 
-def clean_column_name(name: str) -> str:
-    # Remove special characters and spaces
-    return re.sub(r'[^a-zA-Z0-9_]', '', str(name))
-
-def parse_length_precision(type_str: str, length: Optional[str], decimal: Optional[str]) -> str:
-    if pd.isna(length) and pd.isna(decimal):
-        return type_str
-    
-    if type_str.lower() == 'decimal' and not pd.isna(decimal):
-        return f"{type_str}({int(length)}, {int(decimal)})"
-    elif not pd.isna(length):
-        return f"{type_str}({int(length)})"
-    
-    return type_str
-
 def generate_schema(df: pd.DataFrame) -> str:
     # Columns that are not part of the SQL schema
     non_sql_columns = ['Back', 'No', 'Dec', 'Und', 'Note', 'TableCode', 'TableDesc', 'TableNote']
@@ -226,11 +211,16 @@ def generate_schema(df: pd.DataFrame) -> str:
         if pd.isna(row['Name']) or row['Name'] == 'TableName' or row['Name'] in non_sql_columns:
             continue
             
-        column_name = clean_column_name(row['Name'])
+        column_name = re.sub(r'[^a-zA-Z0-9_]', '', str(row['Name']))
         sql_type = type_mapping.get(str(row['Type']).lower(), 'NVARCHAR')
         
         # Parse length and decimal precision
-        sql_type = parse_length_precision(sql_type, row['Len'], row['Dec'])
+        if pd.isna(row['Len']) and pd.isna(row['Dec']):
+            sql_type = sql_type
+        elif sql_type.lower() == 'decimal' and not pd.isna(row['Dec']):
+            sql_type = f"{sql_type}({int(row['Len'])}, {int(row['Dec'])})"
+        elif not pd.isna(row['Len']):
+            sql_type = f"{sql_type}({int(row['Len'])})"
         
         # Build column definition
         column_def = [f"[{column_name}]", sql_type]
@@ -260,7 +250,7 @@ def generate_schema(df: pd.DataFrame) -> str:
     # Add column descriptions
     for _, row in df.iterrows():
         if pd.notna(row['Name']) and pd.notna(row['Desc']) and row['Name'] != 'TableName' and row['Name'] not in non_sql_columns:
-            column_name = clean_column_name(row['Name'])
+            column_name = re.sub(r'[^a-zA-Z0-9_]', '', str(row['Name']))
             sql_parts.append(f"\nEXEC sp_addextendedproperty")
             sql_parts.append(f"    @name = N'MS_Description',")
             sql_parts.append(f"    @value = N'{row['Desc']}',")
