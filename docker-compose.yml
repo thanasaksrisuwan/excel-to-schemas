@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: excel_to_schemas_app
+    environment:
+      - DATABASE_SERVER=sqlserver
+      - DATABASE_NAME=your_db
+      - DATABASE_USER=sa
+      - DATABASE_PASSWORD=YourStrong!Passw0rd
+    volumes:
+      - .:/app
+    depends_on:
+      - sqlserver
+    command: ["python", "main.py"]
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: sqlserver
+    environment:
+      SA_PASSWORD: "YourStrong!Passw0rd"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"

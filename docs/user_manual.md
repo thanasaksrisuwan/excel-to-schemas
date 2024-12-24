@@ -21,18 +21,35 @@
   python-dotenv >= 0.19.0
   ```
 - SQL Server database
+- Docker
+- Docker Compose
 
 ### Setup Steps
 
 1. Clone the repository
-2. Install required Python packages using requirements.txt:
+2. Set up Python virtual environment:
+   ```bash
+   # Create virtual environment
+   python -m venv venv
+
+   # Activate virtual environment
+   # On Windows:
+   .\venv\Scripts\activate
+   # On Unix or MacOS:
+   source venv/bin/activate
+
+   # Verify activation (should show virtual environment path)
+   which python
+   ```
+
+3. Install required Python packages:
    ```bash
    pip install -r requirements.txt
    ```
-   
-   Or install packages individually:
+
+4. Verify installation:
    ```bash
-   pip install pandas pyodbc openpyxl sqlalchemy python-dotenv
+   pip list
    ```
 
 ## Usage
@@ -51,6 +68,24 @@
    ```bash
    python excel_to_schema.py path/to/your/excel_file.xlsx
    ```
+
+### Using Docker Compose
+
+1. Ensure Docker and Docker Compose are installed on your system.
+2. Clone the repository and navigate to the project directory.
+3. Update the `config.json` file with your Excel file path.
+4. Build and start the containers:
+   ```bash
+   docker-compose up --build
+   ```
+5. The application will run and connect to the SQL Server container.
+
+### Stopping the Containers
+
+To stop the containers, run:
+```bash
+docker-compose down
+```
 
 ### Excel File Format
 
