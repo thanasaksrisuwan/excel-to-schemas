@@ -785,8 +785,6 @@ Release Date: {info['release_date']}
             self.config['file_path'] = file_path
             self.save_config()
             self.update_sheet_list()
-            # Show sheet selection dialog
-            self.select_sheets()
 
     def update_sheet_list(self):
         try:
@@ -813,20 +811,6 @@ Release Date: {info['release_date']}
         except Exception as e:
             messagebox.showerror("Error", f"Error reading Excel sheets: {str(e)}")
             logging.error(f"Error loading sheets: {e}")
-
-    def select_sheets(self):
-        try:
-            xls = pd.ExcelFile(self.file_path_entry.get())
-            current_selections = self.config.get('selected_sheets', [])
-            dialog = SheetSelectionDialog(self.root, xls.sheet_names, current_selections)
-            self.root.wait_window(dialog.dialog)
-            if dialog.result:
-                self.config['selected_sheets'] = dialog.result
-                self.save_config()
-                self.update_sheets_display()
-                self.validate_selected_sheets()
-        except Exception as e:
-            messagebox.showerror("Error", f"Error selecting sheets: {str(e)}")
 
     def update_sheets_display(self):
         """Update the display of selected sheets in the GUI"""
