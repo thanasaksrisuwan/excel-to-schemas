@@ -26,9 +26,48 @@ A Python tool to convert Excel spreadsheets into SQL Server database schemas.
 ## Quick Start
 
 1. Clone the repository
-2. Install dependencies: `pip install pandas pyodbc`
-3. Configure your database connection
-4. Run: `python excel_to_schema.py <excel_file>`
+2. Create and activate virtual environment:
+   ```bash
+   python -m venv venv
+   # On Windows:
+   .\venv\Scripts\activate
+   # On Unix or MacOS:
+   source venv/bin/activate
+   ```
+3. Install dependencies: `pip install -r requirements.txt`
+4. Configure your database connection
+5. Run: `python excel_to_schema.py <excel_file>`
+
+## Using Docker Compose
+
+### Prerequisites
+
+- Docker
+- Docker Compose
+
+### Setup Steps
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repo/excel-to-schemas.git
+   cd excel-to-schemas
+   ```
+
+2. Update the `config.json` file with your Excel file path.
+
+3. Build and start the containers:
+   ```bash
+   docker-compose up --build
+   ```
+
+4. The application will run and connect to the SQL Server container.
+
+### Stopping the Containers
+
+To stop the containers, run:
+```bash
+docker-compose down
+```
 
 ## Documentation
 

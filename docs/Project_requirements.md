@@ -1,23 +1,14 @@
-
 # Excel to SQL Schema Generator Requirements
 
-## 1. Core Features
+## 1. Excel File Handling
 
-- **Excel Processing**
-  - Read .xlsx format files
-  - Process worksheets
-  - Map columns to schema
-  - Validate data types
+- **File Format Support**
+  - Read .xlsx format
+  - Process single worksheet
+  - Map predefined column headers
+  - Support basic data types
 
-## 2. Schema Generation
-
-- **Data Types**
-  - SQL Server compatible types
-  - Automatic type mapping
-  - Custom type definitions
-  - Default value handling
-
-## 3. Data Validation & Cleaning
+## 2. Data Type Mapping
 
 - **Supported Conversions**
   - nvarchar → NVARCHAR
@@ -25,6 +16,13 @@
   - datetime → DATETIME
   - nchar → NCHAR
   - bit → BIT
+
+## 3. Data Validation & Cleaning
+
+- **Validation Features**
+  - Validate required columns
+  - Clean data (strip whitespace, handle nulls)
+  - Map data types to SQL types
 
 ## 4. SQL Schema Generation
 
@@ -56,3 +54,12 @@
   - Console status messages
   - Basic error reporting
   - Schema validation results
+
+## 8. Sheet Selection Features
+
+- **Interactive Sheet Selection**
+  - Multiple selection modes (All/Single/Multiple)
+  - Sheet validation before processing
+  - Skip invalid sheets automatically
+  - Clear feedback on sheet status
+  - Remember last selection (optional)
