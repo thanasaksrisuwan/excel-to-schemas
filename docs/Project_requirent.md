@@ -17,7 +17,7 @@
   - Clear feedback on sheet status
   - Remember last selection (optional)
 
-## 2. Data Validation & Cleaning
+## 3. Data Validation & Cleaning
 
 - **Supported Conversions**
   - nvarchar → NVARCHAR
@@ -26,7 +26,7 @@
   - nchar → NCHAR
   - bit → BIT
 
-## 3. SQL Schema Generation
+## 4. SQL Schema Generation
 
 - **Table Operations**
   - Generate CREATE TABLE statements
@@ -34,7 +34,7 @@
   - Handle nullable columns
   - Basic table creation
 
-## 4. Error Management
+## 5. Error Management
 
 - **Error Handling**
   - Basic error logging
@@ -42,16 +42,23 @@
   - File format validation
   - Schema generation validation
 
-## 5. Configuration
+## 6. Configuration
 
 - **System Settings**
   - Database connection string
   - Excel file path
   - Basic logging settings
 
-## 6. Output
+## 7. Output
 
 - **Features**
   - SQL schema generation
   - Console status messages
   - Basic error reporting
+
+## 8. Features
+
+- Converts Excel (.xlsx) files to SQL database schemas
+- Supports basic data types and constraints
+- Generates CREATE TABLE statements
+- Handles primary key and nullable columns

@@ -5,6 +5,7 @@
 1. [Installation](#installation)
 2. [Usage](#usage)
 3. [Troubleshooting](#troubleshooting)
+4. [Features](#features)
 
 ## Installation
 
@@ -73,3 +74,10 @@ For issues, please check:
 1. Console error messages
 2. SQL Server error logs
 3. Project repository issues page
+
+## Features
+
+- Converts Excel (.xlsx) files to SQL database schemas
+- Supports basic data types and constraints
+- Generates CREATE TABLE statements
+- Handles primary key and nullable columns

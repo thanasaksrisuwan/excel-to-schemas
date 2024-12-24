@@ -1,4 +1,3 @@
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -119,3 +118,21 @@ dmypy.json
 
 #config
 config.json
+
+# Dist directory
+dist/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment
+venv/
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
