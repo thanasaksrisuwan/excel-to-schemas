@@ -208,13 +208,81 @@ class ExcelToSchemasGUI:
             
         try:
             df = pd.read_excel(self.file_path_entry.get(), sheet_name=self.sheet_var.get())
+            
+            # Create preview window
             preview_window = tk.Toplevel(self.root)
             preview_window.title(f"Preview: {self.sheet_var.get()}")
+            preview_window.geometry("800x600")
+
+            # Create frame for the table
+            frame = ttk.Frame(preview_window)
+            frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+            # Create style for the treeview
+            style = ttk.Style()
+            style.configure("Treeview",
+                          rowheight=25,
+                          borderwidth=1,
+                          relief="solid",
+                          font=('Arial', 10))
+            style.configure("Treeview.Heading",
+                          font=('Arial', 10, 'bold'),
+                          relief="solid",
+                          borderwidth=1,
+                          background="#e0e0e0")
             
-            text = scrolledtext.ScrolledText(preview_window, width=100, height=30)
-            text.pack(padx=10, pady=10)
-            text.insert(tk.END, df.head(10).to_string())
-            text.configure(state='disabled')
+            # Create treeview with scrollbars
+            tree = ttk.Treeview(frame, style="Treeview")
+            vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+            hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
+            tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
+            # Grid layout with borders
+            tree.grid(column=0, row=0, sticky='nsew', padx=1, pady=1)
+            vsb.grid(column=1, row=0, sticky='ns')
+            hsb.grid(column=0, row=1, sticky='ew')
+            frame.grid_columnconfigure(0, weight=1)
+            frame.grid_rowconfigure(0, weight=1)
+
+            # Configure columns
+            tree["columns"] = list(df.columns)
+            tree["show"] = "headings"
+
+            # Set column headings with improved styling
+            for column in df.columns:
+                tree.heading(column, text=column)
+                # Calculate column width based on header and content
+                max_width = max(
+                    len(str(column)),
+                    df[column].astype(str).str.len().max()
+                )
+                column_width = min(max_width * 10, 300)  # limit width to 300 pixels
+                tree.column(column, width=column_width, minwidth=50)
+
+            # Add alternating row colors
+            style.configure("Treeview", background="#ffffff", 
+                          fieldbackground="#ffffff",
+                          foreground="#000000")
+            style.map("Treeview",
+                     background=[('selected', '#0078d7')],
+                     foreground=[('selected', '#ffffff')])
+
+            # Add data rows with alternating colors
+            for idx, row in df.head(100).iterrows():
+                tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+                tree.insert("", "end", values=list(row), tags=(tag,))
+
+            # Configure row tags for alternating colors
+            tree.tag_configure('oddrow', background='#f0f0f0')
+            tree.tag_configure('evenrow', background='#ffffff')
+
+            # Add row count label with better styling
+            count_label = ttk.Label(
+                preview_window, 
+                text=f"Showing {min(100, len(df))} of {len(df)} rows",
+                font=('Arial', 10)
+            )
+            count_label.pack(pady=5)
             
         except Exception as e:
             messagebox.showerror("Error", f"Error previewing sheet: {str(e)}")
