@@ -4,7 +4,159 @@ import logging
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 from database import connect_to_database
+from validation import generate_schema  # Add this import
 import pandas as pd
+
+class SheetSelectionDialog:
+    def __init__(self, parent, sheets, current_selections=None):
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Select Sheets")
+        self.dialog.geometry("500x600")
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        self.sheets = sheets
+        self.selected_sheets = current_selections or []
+        
+        # Selection mode frame - simplified to just multiple selection mode
+        self.mode_frame = ttk.LabelFrame(self.dialog, text="Sheet Selection")
+        self.mode_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Quick selection buttons
+        quick_frame = ttk.Frame(self.mode_frame)
+        quick_frame.pack(fill="x", padx=5)
+        ttk.Button(quick_frame, text="Select All", 
+                  command=self.select_all).pack(side="left", padx=2)
+        ttk.Button(quick_frame, text="Select None", 
+                  command=self.select_none).pack(side="left", padx=2)
+        ttk.Button(quick_frame, text="Invert Selection", 
+                  command=self.invert_selection).pack(side="left", padx=2)
+
+        # Search box
+        search_frame = ttk.Frame(self.dialog)
+        search_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(search_frame, text="Search:").pack(side="left", padx=5)
+        self.search_var = tk.StringVar()
+        self.search_var.trace("w", self.filter_sheets)
+        ttk.Entry(search_frame, textvariable=self.search_var).pack(side="left", fill="x", expand=True)
+        
+        # Sheet list with counter
+        list_frame = ttk.LabelFrame(self.dialog, text="Available Sheets")
+        list_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        # Add sheet count
+        self.count_label = ttk.Label(list_frame, text="")
+        self.count_label.pack(anchor="w", padx=5, pady=2)
+        
+        # Create scrollable frame for sheets
+        canvas = tk.Canvas(list_frame)
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
+        self.sheet_frame = ttk.Frame(canvas)
+        
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        canvas_frame = canvas.create_window((0, 0), window=self.sheet_frame, anchor="nw")
+        
+        def on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        self.sheet_frame.bind("<Configure>", on_frame_configure)
+        
+        # Create checkboxes
+        self.sheet_vars = []
+        self.sheet_checkboxes = []
+        for sheet in sheets:
+            var = tk.BooleanVar(value=sheet in self.selected_sheets)
+            self.sheet_vars.append(var)
+            cb = ttk.Checkbutton(self.sheet_frame, text=sheet, variable=var,
+                               command=self.update_selection)
+            cb.pack(anchor="w", padx=5, pady=2)
+            self.sheet_checkboxes.append(cb)
+        
+        # Selection info with styling
+        info_frame = ttk.LabelFrame(self.dialog, text="Selection Summary")
+        info_frame.pack(fill="x", padx=10, pady=5)
+        self.info_label = ttk.Label(info_frame, text="", wraplength=450)
+        self.info_label.pack(fill="x", padx=5, pady=5)
+        
+        # Buttons
+        btn_frame = ttk.Frame(self.dialog)
+        btn_frame.pack(fill="x", padx=10, pady=10)
+        ttk.Button(btn_frame, text="Select All", command=lambda: self.mode_var.set("all")).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Clear All", command=self.clear_all).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="OK", command=self.ok).pack(side="right", padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=self.cancel).pack(side="right", padx=5)
+        
+        self.result = None
+        self.update_selection_mode()
+        self.update_selection()
+
+    def filter_sheets(self, *args):
+        search_term = self.search_var.get().lower()
+        for i, (sheet, checkbox) in enumerate(zip(self.sheets, self.sheet_checkboxes)):
+            if search_term in sheet.lower():
+                checkbox.pack(anchor="w", padx=5, pady=2)
+            else:
+                checkbox.pack_forget()
+        self.update_count()
+
+    def clear_all(self):
+        for var in self.sheet_vars:
+            var.set(False)
+        self.update_selection()
+
+    def select_all(self):
+        """Select all visible sheets"""
+        for var, cb in zip(self.sheet_vars, self.sheet_checkboxes):
+            if str(cb.winfo_manager()) != "":  # Only if checkbox is visible
+                var.set(True)
+        self.update_selection()
+
+    def select_none(self):
+        """Deselect all sheets"""
+        for var in self.sheet_vars:
+            var.set(False)
+        self.update_selection()
+
+    def invert_selection(self):
+        """Invert current selection"""
+        for var, cb in zip(self.sheet_vars, self.sheet_checkboxes):
+            if str(cb.winfo_manager()) != "":  # Only if checkbox is visible
+                var.set(not var.get())
+        self.update_selection()
+
+    def update_count(self):
+        visible_count = sum(1 for cb in self.sheet_checkboxes if str(cb.winfo_manager()) != "")
+        selected_count = sum(var.get() for var in self.sheet_vars)
+        self.count_label.config(
+            text=f"Showing {visible_count} of {len(self.sheets)} sheets | {selected_count} selected"
+        )
+
+    def update_selection_mode(self): 
+        pass  # No longer needed
+        
+    def update_selection(self):
+        """Update selection state and display"""
+        selected = [sheet for sheet, var in zip(self.sheets, self.sheet_vars) 
+                   if var.get()]
+
+        # Update selection display
+        selection_text = "Selected: " + (
+            ", ".join(selected[:3] + ["..."] if len(selected) > 3 else selected)
+            if selected else "None"
+        )
+        self.info_label.config(text=selection_text)
+        self.update_count()
+        
+    def ok(self):
+        self.selected_sheets = [sheet for sheet, var in zip(self.sheets, self.sheet_vars) 
+                              if var.get()]
+        self.result = self.selected_sheets
+        self.dialog.destroy()
+        
+    def cancel(self):
+        self.dialog.destroy()
 
 class ExcelToSchemasGUI:
     def __init__(self, root):
@@ -191,6 +343,8 @@ class ExcelToSchemasGUI:
             self.config['file_path'] = file_path
             self.save_config()
             self.update_sheet_list()
+            # Show sheet selection dialog
+            self.select_sheets()
 
     def update_sheet_list(self):
         try:
@@ -200,6 +354,59 @@ class ExcelToSchemasGUI:
                 self.sheet_combo.set(xls.sheet_names[0])
         except Exception as e:
             messagebox.showerror("Error", f"Error reading Excel sheets: {str(e)}")
+
+    def select_sheets(self):
+        try:
+            xls = pd.ExcelFile(self.file_path_entry.get())
+            current_selections = self.config.get('selected_sheets', [])
+            dialog = SheetSelectionDialog(self.root, xls.sheet_names, current_selections)
+            self.root.wait_window(dialog.dialog)
+            if dialog.result:
+                self.config['selected_sheets'] = dialog.result
+                self.save_config()
+                self.update_sheets_display()
+                self.validate_selected_sheets()
+        except Exception as e:
+            messagebox.showerror("Error", f"Error selecting sheets: {str(e)}")
+
+    def update_sheets_display(self):
+        """Update the display of selected sheets in the GUI"""
+        if 'selected_sheets' not in self.config or not self.config['selected_sheets']:
+            self.sheet_var.set('')
+            return
+
+        # Update combobox with selected sheets
+        self.sheet_combo['values'] = self.config['selected_sheets']
+        self.sheet_var.set(self.config['selected_sheets'][0])
+        
+        # Show selection summary in status
+        count = len(self.config['selected_sheets'])
+        sheets_str = ', '.join(self.config['selected_sheets'][:3])
+        if count > 3:
+            sheets_str += f' and {count-3} more'
+        self.update_status("Sheets Selected", f"Selected {count} sheet(s): {sheets_str}")
+
+    def validate_selected_sheets(self):
+        """Validate selected sheets and update status"""
+        if not hasattr(self.config, 'selected_sheets'):
+            return
+            
+        from excel import validate_sheet
+        invalid_sheets = []
+        for sheet in self.config['selected_sheets']:
+            if not validate_sheet(self.file_path_entry.get(), sheet):
+                invalid_sheets.append(sheet)
+                
+        if invalid_sheets:
+            msg = f"Invalid sheets will be skipped: {', '.join(invalid_sheets)}"
+            self.update_status("Warning", msg)
+            logging.warning(msg)
+            
+        valid_sheets = [s for s in self.config['selected_sheets'] if s not in invalid_sheets]
+        if not valid_sheets:
+            self.update_status("Error", "No valid sheets selected")
+        else:
+            self.update_status("Ready", f"Valid sheets: {', '.join(valid_sheets)}")
 
     def preview_sheet(self):
         if not self.file_path_entry.get():
@@ -329,14 +536,14 @@ class ExcelToSchemasGUI:
             messagebox.showerror("Error", "Please select an Excel file first")
             return
 
-        if not self.sheet_var.get():
-            messagebox.showerror("Error", "Please select a sheet")
+        if not self.config.get('selected_sheets'):
+            messagebox.showerror("Error", "Please select sheets to process")
             return
 
         if not self.update_config_from_gui():
             return
         
-        self.config['selected_sheet'] = self.sheet_var.get()
+        # No longer need to set selected_sheet since we're using selected_sheets
         self.config['export_type'] = self.export_var.get()
         self.save_config()
         
@@ -345,8 +552,8 @@ class ExcelToSchemasGUI:
             self.update_status("Starting process...")
             
             if self.export_var.get() == "script":
-                self.update_status("Generating SQL script...", "Reading Excel data...")
-                self.generate_sql_script()
+                self.update_status("Generating SQL scripts...", "Reading Excel data...")
+                self.generate_sql_scripts()
             else:
                 self.update_status("Importing to database...", "Connecting to database...")
                 from main import main as run_main
@@ -359,34 +566,42 @@ class ExcelToSchemasGUI:
             self.update_status("Error occurred!", str(e))
             messagebox.showerror("Error", str(e))
 
-    def generate_sql_script(self):
-        from main import process_sheet
-        from validation import generate_schema
+    def generate_sql_scripts(self):
+        from main import process_sheets
+        from validation import generate_schema  # Add this import if you prefer local import
         
         try:
             self.update_status("Processing Excel data...")
-            result = process_sheet(self.config)
-            if not result:
+            results = process_sheets(self.config)
+            if not results:
                 raise ValueError("No data to process")
             
-            self.update_status("Generating SQL script...", "Creating table structure...")
-            sql_script = generate_schema(result['df'])
-            
-            # Get output file path
-            output_path = filedialog.asksaveasfilename(
-                defaultextension=".sql",
-                filetypes=[("SQL files", "*.sql"), ("All files", "*.*")],
-                initialfile=f"{self.sheet_var.get()}.sql"
-            )
-            
-            if output_path:
-                self.update_status("Saving SQL script...", f"Writing to {output_path}")
+            # Create a directory for SQL scripts
+            directory = filedialog.askdirectory(title="Select Directory for SQL Scripts")
+            if not directory:
+                return
+                
+            for result in results:
+                sheet_name = result['sheet_name']
+                self.update_status(f"Generating SQL script for {sheet_name}...")
+                
+                # Use generate_schema with the correct parameters
+                sql_script = generate_schema(
+                    result['df']  # Pass the DataFrame from the result
+                )
+                
+                output_path = os.path.join(directory, f"{sheet_name}.sql")
+                
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(sql_script)
-                self.update_status("SQL script generated successfully!", f"Saved to {output_path}")
+                    
+                self.update_status("Success", f"Generated SQL script for {sheet_name}")
                 logging.info(f"SQL script saved to {output_path}")
+                
+            self.update_status("All SQL scripts generated successfully!")
+            
         except Exception as e:
-            self.update_status("Error generating SQL script!", str(e))
+            self.update_status("Error generating SQL scripts!", str(e))
             raise
 
     def update_progress(self, value):
