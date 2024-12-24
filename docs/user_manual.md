@@ -118,6 +118,32 @@
 - Detailed logs are written to `app.log`
 - Import summary is generated after completion
 
+### Sheet Selection
+
+1. When running the application, you'll be prompted to select sheets:
+
+   ```bash
+   Available sheets in your Excel file:
+   1. Sheet1
+   2. Sheet2
+   3. Sheet3
+
+   Select sheets to process:
+   [A] All sheets
+   [S] Select specific sheets
+   [1-3] Enter sheet numbers
+   Your choice: 
+   ```
+
+2. Selection options:
+   - Type 'A' for all sheets
+   - Type 'S' to select multiple sheets (comma-separated numbers)
+   - Type individual sheet numbers (1-N)
+
+3. Only valid sheets containing the required schema format will be processed
+
+4. Invalid sheets will be skipped with a warning message
+
 ## Advanced Features
 
 ### Error Recovery

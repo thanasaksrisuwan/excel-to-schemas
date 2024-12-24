@@ -9,6 +9,14 @@
   - Recognize data types automatically
   - Handle formatted cell content
 
+- **Sheet Selection Features**
+  - Interactive sheet selection interface
+  - Multiple selection modes (All/Single/Multiple)
+  - Sheet validation before processing
+  - Skip invalid sheets automatically
+  - Clear feedback on sheet status
+  - Remember last selection (optional)
+
 ## 2. Data Validation & Cleaning
 
 - **Validation Checks**

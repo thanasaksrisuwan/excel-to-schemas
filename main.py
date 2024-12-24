@@ -22,53 +22,74 @@ def load_config():
         logging.error(f"Error loading configuration: {e}")
         raise
 
-def process_sheet(config):
-    """Process sheet and return dictionary with processed data"""
+def process_sheets(config):
+    """Process multiple sheets and return results"""
+    results = []
+    
     df_dict = read_excel_file(config['file_path'])
     if not df_dict:
         raise ValueError("No valid sheets found in Excel file")
 
-    selected_sheet = config.get('selected_sheet')
-    if not selected_sheet or selected_sheet not in df_dict:
-        selected_sheet = list(df_dict.keys())[0]
-        logging.info(f"Using first available sheet: {selected_sheet}")
+    selected_sheets = config.get('selected_sheets', [])
+    if not selected_sheets:
+        selected_sheets = [list(df_dict.keys())[0]]
+        logging.info(f"No sheets selected, using first available sheet: {selected_sheets[0]}")
 
-    df = df_dict[selected_sheet]
-    if df is None or df.empty:
-        raise ValueError(f"No valid data found in sheet: {selected_sheet}")
+    total_sheets = len(selected_sheets)
+    for i, sheet_name in enumerate(selected_sheets):
+        if sheet_name not in df_dict:
+            logging.warning(f"Sheet not found or invalid: {sheet_name}")
+            continue
 
-    df = validate_and_clean_data(df)
-    if df is None or df.empty:
-        raise ValueError("Data validation failed")
+        logging.info(f"Processing sheet {i+1}/{total_sheets}: {sheet_name}")
+        df = df_dict[sheet_name]
+        
+        if df is None or df.empty:
+            logging.warning(f"No valid data found in sheet: {sheet_name}")
+            continue
 
-    schema = map_data_types(df)
-    if not schema:
-        raise ValueError("Failed to map data types")
+        df = validate_and_clean_data(df)
+        if df is None or df.empty:
+            logging.warning(f"Data validation failed for sheet: {sheet_name}")
+            continue
 
-    # Get table info
-    from validation import get_table_info
-    table_info = get_table_info(df)
-    if not table_info:
-        raise ValueError("Failed to get table information")
+        schema = map_data_types(df)
+        if not schema:
+            logging.warning(f"Failed to map data types for sheet: {sheet_name}")
+            continue
 
-    # Use table name from table_info
-    table_name = table_info['name']
-    if not table_name:
-        table_name = selected_sheet.replace(' ', '_')
+        # Get table info
+        from validation import get_table_info
+        table_info = get_table_info(df)
+        if not table_info:
+            logging.warning(f"Failed to get table information for sheet: {sheet_name}")
+            continue
 
-    return {
-        'df': df,
-        'schema': schema,
-        'table_info': table_info,
-        'table_name': table_name
-    }
+        # Use table name from table_info or fallback to sheet name
+        table_name = table_info['name'] or sheet_name.replace(' ', '_')
+
+        results.append({
+            'sheet_name': sheet_name,
+            'df': df,
+            'schema': schema,
+            'table_info': table_info,
+            'table_name': table_name
+        })
+
+        if config.get('progress_callback'):
+            progress = ((i + 1) / total_sheets) * 100
+            config['progress_callback'](progress)
+
+    return results
 
 def main(progress_callback=None):
     try:
         config = load_config()
         validate_config(config)
+        
+        if progress_callback:
+            config['progress_callback'] = progress_callback
 
-        # Configure logging with a more robust configuration
         logging.basicConfig(
             level=getattr(logging, config.get('log_level', 'INFO')),
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -83,26 +104,37 @@ def main(progress_callback=None):
             return
 
         logging.info("Starting the Excel to Schemas project")
+        results = process_sheets(config)
+        
+        if not results:
+            raise ValueError("No sheets were successfully processed")
 
         if config.get('export_type') == 'script':
-            # Generate SQL script
+            # Generate SQL scripts for all sheets
             from database import generate_sql_script
-            result = process_sheet(config)
-            sql_script = generate_sql_script(
-                result['table_name'],
-                result['schema'],
-                result['table_info'],
-                result['df']
-            )
-            return {'sql_script': sql_script}
+            scripts = {}
+            for result in results:
+                sql_script = generate_sql_script(
+                    result['table_name'],
+                    result['schema'],
+                    result['table_info'],
+                    result['df']
+                )
+                scripts[result['sheet_name']] = sql_script
+            return {'sql_scripts': scripts}
         else:
-            # Create table in database
+            # Create tables in database
             connection = connect_to_database(config['database'])
             if not connection:
                 raise ConnectionError("Failed to connect to database")
 
-            result = process_sheet(config)
-            create_sql_table(connection, result['table_name'], result['schema'], result['table_info'])
+            for result in results:
+                create_sql_table(
+                    connection, 
+                    result['table_name'],
+                    result['schema'],
+                    result['table_info']
+                )
 
     except FileNotFoundError as e:
         logging.error(f"File not found: {e}")
