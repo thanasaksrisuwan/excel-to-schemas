@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 
-VERSION = '4.0.0'
+VERSION = '4.1.0'
 RELEASE_DATE = datetime.now().strftime('%Y-%m-%d')
 APP_NAME = 'Excel to Schemas'
 

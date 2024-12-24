@@ -8,6 +8,7 @@ from database import connect_to_database
 from validation import generate_schema  # Add this import
 from version import format_version_string, get_version_info
 import pandas as pd
+from log import setup_logging, TkinterHandler
 
 class SheetSelectionDialog:
     def __init__(self, parent, sheets, current_selections=None):
@@ -161,18 +162,14 @@ class SheetSelectionDialog:
         self.dialog.destroy()
 
 class ExcelToSchemasGUI:
-    def __init__(self, root):
+    def __init__(self, root, config_manager):
         self.root = root
+        self.config_manager = config_manager
+        self.config = self.config_manager.config
         self.setup_window()
         self.apply_theme()
-        
-        # Update to use ConfigManager
-        from config_manager import ConfigManager
-        self.config_manager = ConfigManager()
-        self.config = self.config_manager.config
-        
-        self.create_widgets()
-        self.setup_logging()
+        self.create_widgets()  # Create widgets first
+        self.setup_logging()   # Then set up logging
         self.load_settings_from_config()
 
     def load_settings_from_config(self):
@@ -744,12 +741,8 @@ Release Date: {info['release_date']}
 
     def setup_logging(self):
         """Initialize logging with GUI integration"""
-        from log import setup_logging, TkinterHandler
         gui_handler = TkinterHandler(self.log_display)
-        self.logger = setup_logging(
-            log_level=getattr(logging, self.config.get('log_level', 'INFO')),
-            gui_handler=gui_handler
-        )
+        self.logger = setup_logging(self.config_manager, gui_handler=gui_handler)
 
     def browse_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
