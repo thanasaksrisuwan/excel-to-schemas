@@ -2,6 +2,7 @@ import os
 import json
 import shutil
 import hashlib
+import subprocess
 from datetime import datetime
 from version import VERSION, get_version_info, validate_version, increment_version, update_version_file
 
@@ -12,6 +13,38 @@ def generate_checksum(file_path):
         for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
+
+def git_command(command):
+    """Execute git command and return output"""
+    try:
+        result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Git command failed: {e}")
+        raise
+
+def update_changelog(version, changes=None):
+    """Update CHANGELOG.md with new version"""
+    today = datetime.now().strftime('%Y-%m-%d')
+    new_version_entry = f"\n## [{version}] - {today}\n\n"
+    if changes:
+        new_version_entry += changes + "\n"
+    
+    try:
+        with open('CHANGELOG.md', 'r') as f:
+            content = f.read()
+        
+        # Insert after first # Changelog line
+        updated_content = content.replace(
+            "# Changelog\n",
+            f"# Changelog\n{new_version_entry}"
+        )
+        
+        with open('CHANGELOG.md', 'w') as f:
+            f.write(updated_content)
+    except FileNotFoundError:
+        with open('CHANGELOG.md', 'w') as f:
+            f.write(f"# Changelog\n{new_version_entry}")
 
 def prompt_version_increment():
     """Prompt user for version increment type"""
@@ -43,7 +76,20 @@ def create_release():
     """Create a new release package with validation and checksums"""
     # Prompt for version increment
     new_version = prompt_version_increment()
+    
+    # Get current branch
+    current_branch = git_command("git rev-parse --abbrev-ref HEAD")
+    
+    # Update version and changelog
     update_version_file(new_version)
+    update_changelog(new_version)
+    
+    # Git operations
+    git_command("git add version.py CHANGELOG.md")
+    git_command(f'git commit -m "chore: release version {new_version}"')
+    git_command(f"git tag v{new_version}")
+    git_command(f"git push origin {current_branch}")
+    git_command(f"git push origin v{new_version}")
     
     # Get updated version info
     version_info = get_version_info()
