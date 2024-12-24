@@ -48,11 +48,16 @@ if exist package.json (
     powershell -Command "(Get-Content package.json) -replace '\"version\": \".*\"', '\"version\": \"%VERSION%\"' | Set-Content package.json"
 )
 
+:: Get current branch name
+for /f "tokens=*" %%a in ('git rev-parse --abbrev-ref HEAD') do (
+    set CURRENT_BRANCH=%%a
+)
+
 :: Git operations
 git add .
 git commit -m "chore: release version %VERSION%"
 git tag v%VERSION%
-git push origin main
+git push origin %CURRENT_BRANCH%
 git push origin v%VERSION%
 
 echo.
