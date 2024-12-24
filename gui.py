@@ -166,11 +166,13 @@ class ExcelToSchemasGUI:
         self.setup_window()
         self.apply_theme()
         
-        self.config = self.load_config()
+        # Update to use ConfigManager
+        from config_manager import ConfigManager
+        self.config_manager = ConfigManager()
+        self.config = self.config_manager.config
+        
         self.create_widgets()
         self.setup_logging()
-        
-        # Auto-load all settings from config
         self.load_settings_from_config()
 
     def load_settings_from_config(self):
@@ -333,31 +335,15 @@ class ExcelToSchemasGUI:
         style.map("Primary.TButton",
                  background=[('active', '#0056b3'), ('disabled', '#6c757d')])
 
-    def load_config(self):
-        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as config_file:
-                return json.load(config_file)
-        else:
-            return {
-                "database": {
-                    "driver": "ODBC Driver 17 for SQL Server",
-                    "server": "",
-                    "database": "",
-                    "username": "",
-                    "password": ""
-                },
-                "file_path": "",
-                "batch_size": 1000,
-                "timeout": 30,
-                "retry_attempts": 3,
-                "log_level": "INFO"
-            }
-
     def save_config(self):
-        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-        with open(config_path, 'w') as config_file:
-            json.dump(self.config, config_file, indent=4)
+        """Save current configuration"""
+        if self.update_config_from_gui():
+            if self.config_manager.save_config(self.config):
+                self.update_status("Success", "Settings saved successfully")
+                logging.info("Configuration saved successfully")
+            else:
+                self.update_status("Error", "Failed to save settings")
+                messagebox.showerror("Error", "Failed to save settings")
 
     def create_widgets(self):
         # Create main scrollable container
@@ -757,25 +743,13 @@ Release Date: {info['release_date']}
         messagebox.showinfo("About", about_text)
 
     def setup_logging(self):
-        logging.basicConfig(
-            level=getattr(logging, self.config.get('log_level', 'INFO')),
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[self.TkinterHandler(self.log_display)]
+        """Initialize logging with GUI integration"""
+        from log import setup_logging, TkinterHandler
+        gui_handler = TkinterHandler(self.log_display)
+        self.logger = setup_logging(
+            log_level=getattr(logging, self.config.get('log_level', 'INFO')),
+            gui_handler=gui_handler
         )
-
-    class TkinterHandler(logging.Handler):
-        def __init__(self, text_widget):
-            super().__init__()
-            self.text_widget = text_widget
-
-        def emit(self, record):
-            msg = self.format(record)
-            def append():
-                self.text_widget.configure(state='normal')
-                self.text_widget.insert(tk.END, msg + '\n')
-                self.text_widget.configure(state='disabled')
-                self.text_widget.yview(tk.END)
-            self.text_widget.after(0, append)
 
     def browse_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
