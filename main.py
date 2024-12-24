@@ -156,15 +156,80 @@ def validate_config(config):
     else:
         logging.warning("No Excel file path specified in configuration")
 
-if __name__ == "__main__":
-    # Launch GUI if running directly
+import tkinter as tk
+from gui import ExcelToSchemasGUI
+from config_manager import ConfigManager
+from log import setup_logging
+import logging
+from validation import generate_schema
+import sys
+
+def process_command_line(config_manager):
+    """Handle command line processing when GUI fails"""
     try:
-        from gui import ExcelToSchemasGUI
-        import tkinter as tk
-        root = tk.Tk()
-        app = ExcelToSchemasGUI(root)
-        root.mainloop()
+        logging.info("Falling back to command line processing")
+        config = config_manager.config
+        
+        if not config.get('file_path'):
+            logging.error("No Excel file path specified in config")
+            return 1
+            
+        results = process_sheets(config)
+        if not results:
+            logging.error("No sheets were processed")
+            return 1
+            
+        if config.get('export_type') == 'script':
+            for result in results:
+                sheet_name = result['sheet_name']
+                sql_script = generate_schema(result['df'])
+                output_path = f"{sheet_name}.sql"
+                
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(sql_script)
+                logging.info(f"Generated SQL script: {output_path}")
+        else:
+            connection = connect_to_database(config['database'])
+            if not connection:
+                logging.error("Failed to connect to database")
+                return 1
+                
+            for result in results:
+                create_sql_table(
+                    connection,
+                    result['table_name'],
+                    result['schema'],
+                    result['table_info']
+                )
+            connection.close()
+            logging.info("Command line processing completed successfully")
+            
     except Exception as e:
-        # Fallback to command line if GUI fails
-        print(f"GUI failed to start: {e}. Falling back to command line mode.")
-        main()
+        logging.error(f"Command line processing failed: {e}")
+        return 1
+    return 0
+
+def main():
+    try:
+        # Initialize config manager first
+        config_manager = ConfigManager()
+        
+        # Setup logging with config manager
+        logger = setup_logging(config_manager)
+        
+        try:
+            root = tk.Tk()
+            app = ExcelToSchemasGUI(root, config_manager)
+            root.mainloop()
+        except Exception as e:
+            logging.error(f"GUI failed to start: {e}. Falling back to command line mode.")
+            return process_command_line(config_manager)
+            
+    except Exception as e:
+        print(f"Application error: {e}")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
