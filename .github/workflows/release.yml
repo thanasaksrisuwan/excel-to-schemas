@@ -6,26 +6,49 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.x'
-          
+          cache: 'pip'
+      
       - name: Install dependencies
         run: pip install -r requirements.txt
-          
+      
+      - name: Run tests
+        run: python -m pytest tests/
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4.1.0
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release Package
         run: python release.py
-        
+      
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/*.zip
-          body_path: CHANGELOG.md
+          files: dist/artifacts/*.zip
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
