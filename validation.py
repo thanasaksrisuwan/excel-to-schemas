@@ -15,53 +15,22 @@ def error_handling_wrapper(func):
 
 @error_handling_wrapper
 def validate_and_clean_data(df):
-    if df is None:
-        raise ValueError("ไม่มีข้อมูลให้ตรวจสอบ")
+    """Validate and clean the dataframe"""
+    try:
+        # Use pandas str.strip() instead of applymap
+        for col in df.select_dtypes(include=['object']).columns:
+            df[col] = df[col].str.strip()
         
-    if df.empty:
-        raise ValueError("DataFrame ว่างเปล่า")
-    
-    # ทำสำเนาเพื่อหลีกเลี่ยงการแก้ไขต้นฉบับ
-    df = df.copy()
-    
-    # ตรวจสอบคอลัมน์ที่จำเป็น
-    required_columns = ['Key', 'Name', 'Nul', 'Type', 'Len', 'Dec', 'Def', 'Desc']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"ขาดคอลัมน์ที่จำเป็น: {', '.join(missing_columns)}")
-    
-    # ตรวจสอบประเภทข้อมูล
-    valid_types = ['int', 'bigint', 'nvarchar', 'varchar', 'nchar', 'char', 'datetime', 'decimal', 'float', 'bit']
-    if not df['Type'].str.lower().isin(valid_types).all():
-        invalid_types = df[~df['Type'].str.lower().isin(valid_types)]['Type'].unique()
-        logging.warning(f"พบประเภทข้อมูลที่ไม่ถูกต้อง: {invalid_types}")
-    
-    # ตรวจสอบความยาวสำหรับประเภทสตริง
-    string_types = ['nvarchar', 'varchar', 'nchar', 'char']
-    string_rows = df['Type'].str.lower().isin(string_types)
-    if not df.loc[string_rows, 'Len'].apply(lambda x: pd.isna(x) or (isinstance(x, (int, float)) and x > 0)).all():
-        logging.warning("พบค่าความยาวที่ไม่ถูกต้องสำหรับประเภทสตริง")
-    
-    # จัดการ nullability
-    df['is_nullable'] = df['Nul'].apply(lambda x: str(x).upper() == 'Y' if pd.notnull(x) else False)
-    
-    # จัดการ primary key
-    df['is_primary_key'] = df['Key'].apply(lambda x: str(x).upper() == 'PK' if pd.notnull(x) else False)
-    
-    # จัดการ foreign key
-    df['is_foreign_key'] = df['Key'].apply(lambda x: str(x).upper() == 'FK' if pd.notnull(x) else False)
-    
-    # Handle special characters in 'Name' column
-    df['Name'] = df['Name'].apply(lambda x: re.sub(r'[^a-zA-Z0-9_]', '', str(x)))
-    
-    # Remove duplicates
-    df = df.drop_duplicates(subset=['Name'])
-    
-    # Format cleanup process
-    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
-    
-    logging.info("การตรวจสอบและทำความสะอาดข้อมูลเสร็จสิ้น")
-    return df
+        required_columns = ['Key', 'Name', 'Type', 'Len']
+        if not all(col in df.columns for col in required_columns):
+            missing = [col for col in required_columns if col not in df.columns]
+            logging.warning(f"Missing required columns: {missing}")
+            return None
+            
+        return df
+    except Exception as e:
+        logging.error(f"Error validating data: {e}")
+        return None
 
 @error_handling_wrapper
 def map_data_types(df):

@@ -21,6 +21,31 @@ def validate_column_order(df, expected_columns):
     return validation_errors
 
 @error_handling_wrapper
+def validate_sheet(file_path, sheet_name):
+    """Validate if a sheet has the required schema format"""
+    try:
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
+        
+        # Check required columns
+        required_columns = ['Key', 'Name', 'Type', 'Len']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            logging.warning(f"Sheet '{sheet_name}' missing required columns: {missing_columns}")
+            return False
+            
+        # Check if sheet has valid data
+        if df['Name'].dropna().empty:
+            logging.warning(f"Sheet '{sheet_name}' has no valid data in Name column")
+            return False
+            
+        return True
+        
+    except Exception as e:
+        logging.error(f"Error validating sheet '{sheet_name}': {e}")
+        return False
+
+@error_handling_wrapper
 def read_excel_file(file_path):
     try:
         if not os.path.exists(file_path):
@@ -38,7 +63,18 @@ def read_excel_file(file_path):
         
         df_dict = {}
         
-        for sheet_name in xls.sheet_names:
+        # Modify to handle selected sheets from config
+        if 'selected_sheets' in globals().get('config', {}):
+            sheet_names = [s for s in config['selected_sheets'] if s in xls.sheet_names]
+        else:
+            sheet_names = xls.sheet_names
+        
+        for sheet_name in sheet_names:
+            # Only process if sheet validates
+            if not validate_sheet(file_path, sheet_name):
+                logging.warning(f"Skipping invalid sheet: {sheet_name}")
+                continue
+            
             try:
                 # อ่านชีต Excel
                 df = pd.read_excel(file_path, sheet_name=sheet_name)
