@@ -3,8 +3,10 @@ import json
 import logging
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
+from ttkthemes import ThemedStyle  # Add this import
 from database import connect_to_database
 from validation import generate_schema  # Add this import
+from version import format_version_string, get_version_info
 import pandas as pd
 
 class SheetSelectionDialog:
@@ -83,7 +85,7 @@ class SheetSelectionDialog:
         # Buttons
         btn_frame = ttk.Frame(self.dialog)
         btn_frame.pack(fill="x", padx=10, pady=10)
-        ttk.Button(btn_frame, text="Select All", command=lambda: self.mode_var.set("all")).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Select All", command=self.select_all).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Clear All", command=self.clear_all).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="OK", command=self.ok).pack(side="right", padx=5)
         ttk.Button(btn_frame, text="Cancel", command=self.cancel).pack(side="right", padx=5)
@@ -161,12 +163,175 @@ class SheetSelectionDialog:
 class ExcelToSchemasGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Excel to Schemas")
-
+        self.setup_window()
+        self.apply_theme()
+        
         self.config = self.load_config()
-
         self.create_widgets()
         self.setup_logging()
+        
+        # Auto-load all settings from config
+        self.load_settings_from_config()
+
+    def load_settings_from_config(self):
+        """Load all settings from config file"""
+        try:
+            # Load database settings
+            if 'database' in self.config:
+                db_config = self.config['database']
+                self.driver_var.set(db_config.get('driver', ''))
+                
+                self.server_entry.delete(0, tk.END)
+                self.server_entry.insert(0, db_config.get('server', ''))
+                
+                self.database_entry.delete(0, tk.END)
+                self.database_entry.insert(0, db_config.get('database', ''))
+                
+                self.username_entry.delete(0, tk.END)
+                self.username_entry.insert(0, db_config.get('username', ''))
+                
+                self.password_entry.delete(0, tk.END)
+                self.password_entry.insert(0, db_config.get('password', ''))
+
+            # Load performance settings
+            self.batch_size_entry.delete(0, tk.END)
+            self.batch_size_entry.insert(0, str(self.config.get('batch_size', 1000)))
+            
+            self.timeout_entry.delete(0, tk.END)
+            self.timeout_entry.insert(0, str(self.config.get('timeout', 30)))
+            
+            self.retry_attempts_entry.delete(0, tk.END)
+            self.retry_attempts_entry.insert(0, str(self.config.get('retry_attempts', 3)))
+            
+            self.log_level_entry.delete(0, tk.END)
+            self.log_level_entry.insert(0, self.config.get('log_level', 'INFO'))
+
+            # Load export settings
+            self.export_var.set(self.config.get('export_type', 'database'))
+
+            # Load Excel file and sheets
+            if self.config.get('file_path'):
+                self.file_path_entry.delete(0, tk.END)
+                self.file_path_entry.insert(0, self.config['file_path'])
+                self.update_sheet_list()
+                
+                if self.config.get('selected_sheets'):
+                    self.update_sheets_display()
+                    self.validate_selected_sheets()
+
+            logging.info("Settings loaded from config successfully")
+            self.update_status("Ready", "Settings loaded from config")
+            
+        except Exception as e:
+            logging.error(f"Error loading settings from config: {e}")
+            self.update_status("Warning", "Could not load all settings from config")
+
+    def setup_window(self):
+        # Set window title with version
+        self.root.title(format_version_string())
+        
+        # Configure window properties
+        self.root.minsize(1024, 768)  # Larger minimum size
+        
+        # Center the window
+        window_width = 1200  # Wider default window
+        window_height = 900  # Taller default window
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        center_x = int(screen_width/2 - window_width/2)
+        center_y = int(screen_height/2 - window_height/2)
+        self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
+        
+        # Configure expansion behavior
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+
+        # Add menu bar
+        self.create_menu()
+
+    def create_menu(self):
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+
+        # File menu
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Open Excel File", command=self.browse_file)
+        file_menu.add_command(label="Save Settings", command=self.save_config)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.root.quit)
+
+        # View menu
+        view_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="View", menu=view_menu)
+        view_menu.add_command(label="Reset Window Size", 
+                            command=lambda: self.root.geometry("1200x900"))
+        view_menu.add_command(label="Clear Logs", 
+                            command=lambda: self.log_display.delete(1.0, tk.END))
+
+        # Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="About", command=self.show_about)
+        help_menu.add_command(label="Driver Help", command=self.show_driver_help)
+
+    def apply_theme(self):
+        try:
+            # Try to use ttkthemes if available
+            style = ThemedStyle(self.root)
+            available_themes = style.theme_names()
+            
+            # Try preferred themes in order
+            preferred_themes = ['azure', 'winnative', 'clam', 'alt', 'default']
+            selected_theme = 'default'
+            
+            for theme in preferred_themes:
+                if theme in available_themes:
+                    selected_theme = theme
+                    break
+            
+            style.set_theme(selected_theme)
+            logging.info(f"Applied theme: {selected_theme}")
+            
+        except Exception as e:
+            logging.warning(f"Failed to apply custom theme: {e}. Using default theme.")
+            # Fall back to basic ttk styling
+            style = ttk.Style()
+            style.theme_use('default')
+        
+        # Apply consistent styling regardless of theme
+        default_font = ('Segoe UI', 10)
+        header_font = ('Segoe UI', 12, 'bold')
+        title_font = ('Segoe UI', 14, 'bold')
+        
+        style = ttk.Style()
+        style.configure(".", font=default_font)
+        style.configure("Header.TLabel", font=header_font)
+        style.configure("Status.TLabel", font=default_font)
+        style.configure("Title.TLabel", font=title_font)
+        
+        # Configure Treeview styles
+        style.configure("Treeview",
+                       rowheight=25,
+                       font=default_font)
+        style.configure("Treeview.Heading",
+                       font=header_font)
+
+        # Add custom button styles with icons and better visibility
+        style.configure("Primary.TButton",
+                      font=('Segoe UI', 10, 'bold'),
+                      padding=10)
+        style.configure("Action.TButton",
+                      font=('Segoe UI', 11, 'bold'),
+                      padding=10,
+                      background="#28a745",
+                      foreground="white")
+        
+        # Make buttons more visible
+        style.map("Action.TButton",
+                 background=[('active', '#218838'), ('disabled', '#6c757d')])
+        style.map("Primary.TButton",
+                 background=[('active', '#0056b3'), ('disabled', '#6c757d')])
 
     def load_config(self):
         config_path = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -195,124 +360,401 @@ class ExcelToSchemasGUI:
             json.dump(self.config, config_file, indent=4)
 
     def create_widgets(self):
-        # Create main notebook for tabs
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.grid(row=0, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+        # Create main scrollable container
+        self.canvas = tk.Canvas(self.root)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
+        
+        # Main container that holds everything
+        self.main_container = ttk.Frame(self.canvas, padding="10")
+        
+        # Top action bar with main buttons
+        action_bar = ttk.Frame(self.main_container)
+        action_bar.pack(fill="x", pady=(0, 10))
+        
+        # Left side: Save button
+        ttk.Button(
+            action_bar,
+            text="💾 Save Settings",
+            command=self.save_config,
+            style="Primary.TButton"
+        ).pack(side="left", padx=5)
+        
+        # Right side: Run button
+        ttk.Button(
+            action_bar,
+            text="▶ Run Process",
+            command=self.run,
+            style="Primary.TButton"
+        ).pack(side="right", padx=5)
+        
+        # Configure canvas scrolling
+        self.main_container.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        self.canvas.create_window((0, 0), window=self.main_container, anchor="nw")
+        
+        # Configure canvas and scrollbar
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Configure root grid weights
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        
+        # Add mousewheel scrolling
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        
+        # Header with version info and help menu
+        header_frame = self.create_header(self.main_container)
+        header_frame.pack(fill="x", pady=(0, 10))
+        
+        # Create tabbed interface
+        self.notebook = ttk.Notebook(self.main_container)
+        self.notebook.pack(fill="both", expand=True, pady=(0, 10))
+        
+        # Create and add tabs
+        self.setup_database_tab()
+        self.setup_excel_tab()
+        self.setup_settings_tab()
+        
+        # Status and progress section
+        status_frame = self.create_status_frame(self.main_container)
+        status_frame.pack(fill="x", pady=(10, 0))
+        
+        # Add log display
+        log_frame = ttk.LabelFrame(self.main_container, text="Logs", padding="10")
+        log_frame.pack(fill="both", expand=True, pady=(10, 0))
+        
+        self.log_display = scrolledtext.ScrolledText(
+            log_frame,
+            width=80,
+            height=10,
+            font=('Consolas', 9)
+        )
+        self.log_display.pack(fill="both", expand=True)
+        self.log_display.configure(state='disabled')
+        
+        # Remove the old button frame since buttons are now in action bar
+        # Comment out or remove: button_frame = self.create_button_frame(self.main_container)
 
-        # Database settings tab
-        self.db_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.db_frame, text='Database Settings')
+    def _on_mousewheel(self, event):
+        """Handle mousewheel scrolling"""
+        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
-        tk.Label(self.db_frame, text="Database Settings").grid(row=0, column=0, columnspan=2, pady=10)
+    def create_header(self, parent):
+        header = ttk.Frame(parent)
+        
+        # Title and version
+        version_info = get_version_info()
+        title_label = ttk.Label(
+            header,
+            text=f"{version_info['app_name']}",
+            style="Title.TLabel"
+        )
+        title_label.pack(side="left")
+        
+        version_label = ttk.Label(
+            header,
+            text=f"v{version_info['version']} ({version_info['release_date']})",
+            style="Status.TLabel"
+        )
+        version_label.pack(side="left", padx=(5, 0))
+        
+        return header
 
-        tk.Label(self.db_frame, text="Driver:").grid(row=1, column=0, sticky=tk.E)
-        self.driver_entry = tk.Entry(self.db_frame, width=50)
-        self.driver_entry.grid(row=1, column=1)
-        self.driver_entry.insert(0, self.config['database']['driver'])
+    def setup_database_tab(self):
+        db_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(db_frame, text='Database Connection')
+        
+        # Create groups for better organization
+        conn_group = ttk.LabelFrame(db_frame, text="Connection Details", padding="10")
+        conn_group.pack(fill="x", padx=5, pady=5)
+        
+        # Common database drivers
+        self.common_drivers = [
+            "ODBC Driver 18 for SQL Server",
+            "ODBC Driver 17 for SQL Server",
+            "SQL Server",
+            "MySQL ODBC 8.0 Driver",
+            "MySQL ODBC 5.3 Driver",
+            "PostgreSQL ODBC Driver",
+            "PostgreSQL ANSI",
+            "Oracle ODBC Driver",
+        ]
+        
+        # Driver selection
+        ttk.Label(conn_group, text="Driver:").grid(row=0, column=0, sticky="e", padx=5, pady=3)
+        self.driver_var = tk.StringVar()
+        self.driver_combo = ttk.Combobox(
+            conn_group, 
+            textvariable=self.driver_var,
+            values=self.common_drivers,
+            width=47
+        )
+        self.driver_combo.grid(row=0, column=1, sticky="ew", padx=5, pady=3)
+        
+        # Add help button for driver info
+        ttk.Button(
+            conn_group, 
+            text="?",
+            width=3,
+            command=self.show_driver_help
+        ).grid(row=0, column=2, padx=5, pady=3)
+        
+        # Rest of the connection fields
+        fields = [
+            ("Server:", "server_entry"),
+            ("Database:", "database_entry"),
+            ("Username:", "username_entry"),
+            ("Password:", "password_entry")
+        ]
+        
+        for i, (label_text, entry_name) in enumerate(fields, start=1):
+            ttk.Label(conn_group, text=label_text).grid(row=i, column=0, sticky="e", padx=5, pady=3)
+            entry = ttk.Entry(conn_group, width=50)
+            entry.grid(row=i, column=1, columnspan=2, sticky="ew", padx=5, pady=3)
+            setattr(self, entry_name, entry)
+            
+            if entry_name == "password_entry":
+                entry.configure(show="*")
 
-        tk.Label(self.db_frame, text="Server:").grid(row=2, column=0, sticky=tk.E)
-        self.server_entry = tk.Entry(self.db_frame, width=50)
-        self.server_entry.grid(row=2, column=1)
-        self.server_entry.insert(0, self.config['database']['server'])
+        # Add driver info text
+        info_frame = ttk.LabelFrame(db_frame, text="Driver Information", padding="10")
+        info_frame.pack(fill="x", padx=5, pady=5)
+        
+        info_text = """To find available ODBC drivers on your system:
 
-        tk.Label(self.db_frame, text="Database:").grid(row=3, column=0, sticky=tk.E)
-        self.database_entry = tk.Entry(self.db_frame, width=50)
-        self.database_entry.grid(row=3, column=1)
-        self.database_entry.insert(0, self.config['database']['database'])
+Windows:
+1. Open "ODBC Data Sources" from Windows Admin Tools
+2. Click "Add" in System DSN tab
+3. View list of installed drivers
 
-        tk.Label(self.db_frame, text="Username:").grid(row=4, column=0, sticky=tk.E)
-        self.username_entry = tk.Entry(self.db_frame, width=50)
-        self.username_entry.grid(row=4, column=1)
-        self.username_entry.insert(0, self.config['database']['username'])
+Linux/Mac:
+1. Run 'odbcinst -q -d' in terminal
+2. Check installed drivers in /etc/odbcinst.ini"""
 
-        tk.Label(self.db_frame, text="Password:").grid(row=5, column=0, sticky=tk.E)
-        self.password_entry = tk.Entry(self.db_frame, show="*", width=50)
-        self.password_entry.grid(row=5, column=1)
-        self.password_entry.insert(0, self.config['database']['password'])
+        info_label = ttk.Label(
+            info_frame, 
+            text=info_text,
+            wraplength=550,
+            justify="left"
+        )
+        info_label.pack(fill="x", padx=5, pady=5)
+        
+        # Test connection button
+        ttk.Button(db_frame, text="Test Connection", command=self.test_connection).pack(
+            pady=10
+        )
 
-        # Add test connection button
-        tk.Button(self.db_frame, text="Test Connection", command=self.test_connection).grid(row=6, column=1, pady=5)
+    def show_driver_help(self):
+        help_text = """Common Database Driver Names:
 
-        # Excel file and sheet selection
-        excel_frame = ttk.LabelFrame(self.root, text="Excel Settings")
-        excel_frame.grid(row=6, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+SQL Server:
+- ODBC Driver 18 for SQL Server (Latest)
+- ODBC Driver 17 for SQL Server
+- SQL Server
 
-        tk.Label(excel_frame, text="Excel File:").grid(row=0, column=0, sticky=tk.E)
-        self.file_path_entry = tk.Entry(excel_frame, width=50)
-        self.file_path_entry.grid(row=0, column=1)
-        self.file_path_entry.insert(0, self.config['file_path'])
-        tk.Button(excel_frame, text="Browse", command=self.browse_file).grid(row=0, column=2)
+MySQL:
+- MySQL ODBC 8.0 Driver
+- MySQL ODBC 5.3 Driver
 
-        tk.Label(excel_frame, text="Sheet:").grid(row=1, column=0, sticky=tk.E)
+PostgreSQL:
+- PostgreSQL ODBC Driver
+- PostgreSQL ANSI
+
+Oracle:
+- Oracle ODBC Driver
+- Oracle in OraClient12Home1
+
+Note: Available drivers depend on what's installed on your system.
+Check ODBC Data Source Administrator for exact driver names."""
+
+        messagebox.showinfo("Database Drivers Help", help_text)
+
+    def setup_excel_tab(self):
+        excel_frame = ttk.Frame(self.notebook)
+        self.notebook.add(excel_frame, text='Excel Settings')
+        
+        # Create paned window for split view
+        paned = ttk.PanedWindow(excel_frame, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Left side: File and sheet selection
+        left_frame = ttk.Frame(paned)
+        paned.add(left_frame, weight=1)
+        
+        # File selection group
+        file_group = ttk.LabelFrame(left_frame, text="Excel File", padding="10")
+        file_group.pack(fill="x", padx=5, pady=5)
+        
+        file_frame = ttk.Frame(file_group)
+        file_frame.pack(fill="x", padx=5, pady=5)
+        
+        self.file_path_entry = ttk.Entry(file_frame)
+        self.file_path_entry.pack(side="left", fill="x", expand=True)
+        
+        ttk.Button(file_frame, text="Browse", 
+                  command=self.browse_file,
+                  style="Primary.TButton").pack(side="right", padx=5)
+
+        # Sheet selection group
+        sheet_group = ttk.LabelFrame(left_frame, text="Available Sheets", padding="10")
+        sheet_group.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Search box
+        search_frame = ttk.Frame(sheet_group)
+        search_frame.pack(fill="x", padx=5, pady=5)
+        ttk.Label(search_frame, text="Search:").pack(side="left")
+        self.sheet_search_var = tk.StringVar()
+        self.sheet_search_var.trace("w", self.filter_sheets)
+        ttk.Entry(search_frame, textvariable=self.sheet_search_var).pack(
+            side="left", fill="x", expand=True, padx=5)
+
+        # Sheet list with scrollbar
+        list_frame = ttk.Frame(sheet_group)
+        list_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        scrollbar = ttk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.sheet_list = tk.Listbox(list_frame, 
+                                    selectmode="multiple",
+                                    yscrollcommand=scrollbar.set,
+                                    height=10,
+                                    exportselection=False)
+        self.sheet_list.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.sheet_list.yview)
+        
+        # Selection summary
+        self.sheet_summary = ttk.Label(
+            sheet_group,
+            text="No sheets selected",
+            wraplength=550,
+            justify="left",
+            style="Status.TLabel"
+        )
+        self.sheet_summary.pack(fill="x", padx=5, pady=5)
+        
+        # Quick actions
+        btn_frame = ttk.Frame(sheet_group)
+        btn_frame.pack(fill="x", padx=5, pady=5)
+        ttk.Button(btn_frame, text="Select All", 
+                  command=self.select_all_sheets).pack(side="left", padx=2)
+        ttk.Button(btn_frame, text="Clear All", 
+                  command=self.clear_all_sheets).pack(side="left", padx=2)
+
+        # Right side: Preview
+        right_frame = ttk.Frame(paned)
+        paned.add(right_frame, weight=1)
+        
+        preview_group = ttk.LabelFrame(right_frame, text="Sheet Preview", padding="10")
+        preview_group.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Preview controls
+        preview_controls = ttk.Frame(preview_group)
+        preview_controls.pack(fill="x", padx=5, pady=5)
+        
         self.sheet_var = tk.StringVar()
-        self.sheet_combo = ttk.Combobox(excel_frame, textvariable=self.sheet_var, state='readonly')
-        self.sheet_combo.grid(row=1, column=1, sticky="ew")
+        ttk.Label(preview_controls, text="Selected Sheet:").pack(side="left")
+        self.sheet_combo = ttk.Combobox(preview_controls, 
+                                       textvariable=self.sheet_var,
+                                       state='readonly',
+                                       width=40)
+        self.sheet_combo.pack(side="left", fill="x", expand=True, padx=5)
+        
+        ttk.Button(preview_controls, text="Preview",
+                  command=self.preview_sheet,
+                  style="Primary.TButton").pack(side="right")
 
-        # Preview button
-        tk.Button(excel_frame, text="Preview Sheet", command=self.preview_sheet).grid(row=1, column=2)
+        # Bind selection event
+        self.sheet_list.bind('<<ListboxSelect>>', self.update_sheet_selection)
 
+    def setup_settings_tab(self):
+        settings_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(settings_frame, text='Settings')
+        
         # Performance settings
-        tk.Label(self.root, text="Batch Size:").grid(row=7, column=0, sticky=tk.E)
-        self.batch_size_entry = tk.Entry(self.root, width=50)
-        self.batch_size_entry.grid(row=7, column=1)
-        self.batch_size_entry.insert(0, self.config['batch_size'])
-
-        tk.Label(self.root, text="Timeout:").grid(row=8, column=0, sticky=tk.E)
-        self.timeout_entry = tk.Entry(self.root, width=50)
-        self.timeout_entry.grid(row=8, column=1)
-        self.timeout_entry.insert(0, self.config['timeout'])
-
-        tk.Label(self.root, text="Retry Attempts:").grid(row=9, column=0, sticky=tk.E)
-        self.retry_attempts_entry = tk.Entry(self.root, width=50)
-        self.retry_attempts_entry.grid(row=9, column=1)
-        self.retry_attempts_entry.insert(0, self.config['retry_attempts'])
-
-        # Log level
-        tk.Label(self.root, text="Log Level:").grid(row=10, column=0, sticky=tk.E)
-        self.log_level_entry = tk.Entry(self.root, width=50)
-        self.log_level_entry.grid(row=10, column=1)
-        self.log_level_entry.insert(0, self.config['log_level'])
-
-        # Add export options
+        perf_group = ttk.LabelFrame(settings_frame, text="Performance Settings", padding="10")
+        perf_group.pack(fill="x", padx=5, pady=5)
+        
+        fields = [
+            ("Batch Size:", "batch_size_entry"),
+            ("Timeout:", "timeout_entry"),
+            ("Retry Attempts:", "retry_attempts_entry"),
+            ("Log Level:", "log_level_entry")
+        ]
+        
+        for i, (label_text, entry_name) in enumerate(fields):
+            ttk.Label(perf_group, text=label_text).grid(row=i, column=0, sticky="e", padx=5, pady=3)
+            entry = ttk.Entry(perf_group, width=50)
+            entry.grid(row=i, column=1, sticky="ew", padx=5, pady=3)
+            setattr(self, entry_name, entry)
+        
+        # Export options
+        export_group = ttk.LabelFrame(settings_frame, text="Export Options", padding="10")
+        export_group.pack(fill="x", padx=5, pady=5)
+        
         self.export_var = tk.StringVar(value="database")
-        export_frame = ttk.LabelFrame(self.root, text="Export Options")
-        export_frame.grid(row=10, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
-        
-        ttk.Radiobutton(export_frame, text="Import to Database", 
-                       variable=self.export_var, value="database").grid(row=0, column=0, padx=5)
-        ttk.Radiobutton(export_frame, text="Generate SQL Script", 
-                       variable=self.export_var, value="script").grid(row=0, column=1, padx=5)
+        ttk.Radiobutton(export_group, text="Import to Database", variable=self.export_var, value="database").pack(side="left", padx=5, pady=3)
+        ttk.Radiobutton(export_group, text="Generate SQL Script", variable=self.export_var, value="script").pack(side="left", padx=5, pady=3)
 
-        # Add status display area
-        status_frame = ttk.LabelFrame(self.root, text="Status")
-        status_frame.grid(row=11, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+    def create_status_frame(self, parent):
+        status_frame = ttk.LabelFrame(parent, text="Status", padding="10")
         
+        # Status message
         self.status_text = tk.StringVar(value="Ready")
-        self.status_label = ttk.Label(status_frame, textvariable=self.status_text)
-        self.status_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.status_label = ttk.Label(
+            status_frame,
+            textvariable=self.status_text,
+            style="Status.TLabel"
+        )
+        self.status_label.pack(fill="x")
         
-        # Add operation details display
-        self.details_text = scrolledtext.ScrolledText(status_frame, width=80, height=5)
-        self.details_text.grid(row=1, column=0, padx=5, pady=5)
-
-        # Move existing buttons to new position
-        button_frame = ttk.Frame(self.root)
-        button_frame.grid(row=12, column=0, columnspan=3, pady=10)
+        # Add details text area
+        self.details_text = scrolledtext.ScrolledText(
+            status_frame,
+            height=3,
+            font=('Consolas', 9)
+        )
+        self.details_text.pack(fill="x", pady=(5, 0))
         
-        tk.Button(button_frame, text="Save Config", command=self.save_config).grid(row=0, column=0, padx=5)
-        tk.Button(button_frame, text="Run", command=self.run).grid(row=0, column=1, padx=5)
-
-        # Remove "View Logs" button
-        # tk.Button(button_frame, text="View Logs", command=self.view_logs).grid(row=0, column=2, padx=5)
-
-        # Move log display and progress bar
-        self.log_display = scrolledtext.ScrolledText(self.root, width=80, height=20)
-        self.log_display.grid(row=13, column=0, columnspan=3, pady=10)
-
-        # Add progress bar
+        # Progress bar with percentage
+        progress_frame = ttk.Frame(status_frame)
+        progress_frame.pack(fill="x", pady=(5, 0))
+        
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(self.root, variable=self.progress_var, maximum=100)
-        self.progress_bar.grid(row=14, column=0, columnspan=3, sticky='ew', padx=10, pady=5)
+        self.progress_bar = ttk.Progressbar(
+            progress_frame,
+            variable=self.progress_var,
+            maximum=100,
+            mode='determinate'
+        )
+        self.progress_bar.pack(side="left", fill="x", expand=True)
+        
+        self.progress_label = ttk.Label(
+            progress_frame,
+            text="0%",
+            style="Status.TLabel"
+        )
+        self.progress_label.pack(side="left", padx=(5, 0))
+        
+        return status_frame
+
+    def show_about(self):
+        """Show about dialog with version info"""
+        info = get_version_info()
+        about_text = f"""
+{info['app_name']}
+Version: {info['version']}
+Release Date: {info['release_date']}
+
+{info['description']}
+
+© 2024 Your Company Name
+"""
+        messagebox.showinfo("About", about_text)
 
     def setup_logging(self):
         logging.basicConfig(
@@ -349,11 +791,28 @@ class ExcelToSchemasGUI:
     def update_sheet_list(self):
         try:
             xls = pd.ExcelFile(self.file_path_entry.get())
-            self.sheet_combo['values'] = xls.sheet_names
-            if xls.sheet_names:
-                self.sheet_combo.set(xls.sheet_names[0])
+            self.all_sheets = xls.sheet_names
+            
+            # Clear and repopulate sheet list
+            self.sheet_list.delete(0, tk.END)
+            for sheet in self.all_sheets:
+                self.sheet_list.insert(tk.END, sheet)
+            
+            # Restore previous selections if any
+            if self.config.get('selected_sheets'):
+                for i, sheet in enumerate(self.all_sheets):
+                    if sheet in self.config['selected_sheets']:
+                        self.sheet_list.selection_set(i)
+            
+            # Bind selection event
+            self.sheet_list.bind('<<ListboxSelect>>', self.update_sheet_selection)
+            
+            # Update display
+            self.update_sheet_selection()
+            
         except Exception as e:
             messagebox.showerror("Error", f"Error reading Excel sheets: {str(e)}")
+            logging.error(f"Error loading sheets: {e}")
 
     def select_sheets(self):
         try:
@@ -373,25 +832,40 @@ class ExcelToSchemasGUI:
         """Update the display of selected sheets in the GUI"""
         if 'selected_sheets' not in self.config or not self.config['selected_sheets']:
             self.sheet_var.set('')
+            self.sheet_summary.config(text="No sheets selected")
             return
 
         # Update combobox with selected sheets
         self.sheet_combo['values'] = self.config['selected_sheets']
         self.sheet_var.set(self.config['selected_sheets'][0])
         
-        # Show selection summary in status
+        # Show selection summary
         count = len(self.config['selected_sheets'])
-        sheets_str = ', '.join(self.config['selected_sheets'][:3])
-        if count > 3:
-            sheets_str += f' and {count-3} more'
-        self.update_status("Sheets Selected", f"Selected {count} sheet(s): {sheets_str}")
+        if count <= 5:
+            sheets_str = ", ".join(self.config['selected_sheets'])
+        else:
+            visible_sheets = ", ".join(self.config['selected_sheets'][:5])
+            sheets_str = f"{visible_sheets} and {count-5} more..."
+        
+        summary_text = f"Selected {count} sheet(s):\n{sheets_str}"
+        self.sheet_summary.config(text=summary_text)
+        
+        # Update status
+        self.update_status("Sheets Selected", f"Selected {count} sheet(s)")
 
     def validate_selected_sheets(self):
         """Validate selected sheets and update status"""
         if not hasattr(self.config, 'selected_sheets'):
             return
             
-        from excel import validate_sheet
+        def validate_sheet(file_path, sheet_name):
+            """Basic sheet validation"""
+            try:
+                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                return not df.empty
+            except Exception:
+                return False
+                
         invalid_sheets = []
         for sheet in self.config['selected_sheets']:
             if not validate_sheet(self.file_path_entry.get(), sheet):
@@ -508,7 +982,7 @@ class ExcelToSchemasGUI:
 
     def update_config_from_gui(self):
         try:
-            self.config['database']['driver'] = self.driver_entry.get()
+            self.config['database']['driver'] = self.driver_var.get()
             self.config['database']['server'] = self.server_entry.get()
             self.config['database']['database'] = self.database_entry.get()
             self.config['database']['username'] = self.username_entry.get()
@@ -606,8 +1080,63 @@ class ExcelToSchemasGUI:
 
     def update_progress(self, value):
         self.progress_var.set(value)
+        self.progress_label.config(text=f"{int(value)}%")
         self.update_status("Processing...", f"Progress: {value:.1f}%")
         self.root.update_idletasks()
+
+    def filter_sheets(self, *args):
+        """Filter sheets based on search text"""
+        if not hasattr(self, 'all_sheets'):
+            return
+            
+        search_term = self.sheet_search_var.get().lower()
+        self.sheet_list.delete(0, tk.END)
+        
+        for sheet in self.all_sheets:
+            if search_term in sheet.lower():
+                self.sheet_list.insert(tk.END, sheet)
+                if sheet in self.config.get('selected_sheets', []):
+                    idx = self.sheet_list.size() - 1
+                    self.sheet_list.selection_set(idx)
+
+    def select_all_sheets(self):
+        """Select all visible sheets"""
+        self.sheet_list.select_set(0, tk.END)
+        self.update_sheet_selection()
+
+    def clear_all_sheets(self):
+        """Clear all sheet selections"""
+        self.sheet_list.selection_clear(0, tk.END)
+        self.update_sheet_selection()
+
+    def update_sheet_selection(self, *args):
+        """Update the selected sheets in config and UI"""
+        selected_indices = self.sheet_list.curselection()
+        selected_sheets = [self.sheet_list.get(i) for i in selected_indices]
+        self.config['selected_sheets'] = selected_sheets
+        self.save_config()
+        
+        # Update display
+        if selected_sheets:
+            self.sheet_combo['values'] = selected_sheets
+            self.sheet_var.set(selected_sheets[0])
+            
+            # Update summary
+            count = len(selected_sheets)
+            if count <= 5:
+                sheets_str = ", ".join(selected_sheets)
+            else:
+                visible_sheets = ", ".join(selected_sheets[:5])
+                sheets_str = f"{visible_sheets} and {count-5} more..."
+            
+            summary_text = f"Selected {count} sheet(s):\n{sheets_str}"
+            self.sheet_summary.config(text=summary_text)
+            self.update_status("Sheets Selected", f"Selected {count} sheet(s)")
+        else:
+            self.sheet_combo['values'] = []
+            self.sheet_var.set('')
+            self.sheet_summary.config(text="No sheets selected")
+            self.update_status("Warning", "No sheets selected")
 
 if __name__ == "__main__":
     root = tk.Tk()
