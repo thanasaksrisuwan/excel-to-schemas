@@ -4,24 +4,35 @@
 
 1. [Installation](#installation)
 2. [Usage](#usage)
-3. [Troubleshooting](#troubleshooting)
-4. [Features](#features)
+3. [Configuration](#configuration)
+4. [Troubleshooting](#troubleshooting)
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.7 or higher
-- pandas library
+- Required Python packages:
+  ```
+  pandas >= 1.3.0
+  pyodbc >= 4.0.30
+  openpyxl >= 3.0.7
+  sqlalchemy >= 1.4.0
+  python-dotenv >= 0.19.0
+  ```
 - SQL Server database
 
 ### Setup Steps
 
 1. Clone the repository
-2. Install required Python packages:
-
+2. Install required Python packages using requirements.txt:
    ```bash
-   pip install pandas pyodbc
+   pip install -r requirements.txt
+   ```
+   
+   Or install packages individually:
+   ```bash
+   pip install pandas pyodbc openpyxl sqlalchemy python-dotenv
    ```
 
 ## Usage
@@ -52,6 +63,19 @@
   - Nullable flags
   - Primary key indicators
 
+## Configuration
+
+### Database Settings
+- Create a `config.ini` file in the project root
+- Add your database connection details:
+  ```ini
+  [database]
+  server=your_server
+  database=your_db
+  username=your_username
+  password=your_password
+  ```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -74,10 +98,3 @@ For issues, please check:
 1. Console error messages
 2. SQL Server error logs
 3. Project repository issues page
-
-## Features
-
-- Converts Excel (.xlsx) files to SQL database schemas
-- Supports basic data types and constraints
-- Generates CREATE TABLE statements
-- Handles primary key and nullable columns
