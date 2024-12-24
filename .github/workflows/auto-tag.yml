@@ -1,0 +1,23 @@
+name: Auto Tag on Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Create and push tag
+        run: |
+          VERSION=${GITHUB_REF#refs/releases/}
+          git tag $VERSION
+          git push origin $VERSION
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
