@@ -17,6 +17,7 @@ def error_handling_wrapper(func):
 def validate_and_clean_data(df):
     """Validate and clean the dataframe"""
     try:
+        logging.info("Starting data validation and cleaning")
         # Use pandas str.strip() instead of applymap
         for col in df.select_dtypes(include=['object']).columns:
             df[col] = df[col].str.strip()
@@ -27,6 +28,7 @@ def validate_and_clean_data(df):
             logging.warning(f"Missing required columns: {missing}")
             return None
             
+        logging.info("Data validation and cleaning completed successfully")
         return df
     except Exception as e:
         logging.error(f"Error validating data: {e}")
@@ -34,6 +36,7 @@ def validate_and_clean_data(df):
 
 @error_handling_wrapper
 def map_data_types(df):
+    logging.info("Starting data type mapping")
     type_mapping = {
         'int': 'INT',
         'bigint': 'BIGINT',
@@ -98,6 +101,7 @@ def map_data_types(df):
 
 def clean_data_for_sql(df):
     """ทำความสะอาดและเตรียมข้อมูลสำหรับการแทรก SQL"""
+    logging.info("Starting data cleaning for SQL")
     for column in df.columns:
         # แทนที่ NaN ด้วย None สำหรับ SQL NULL
         df[column] = df[column].replace({np.nan: None})
@@ -111,12 +115,14 @@ def clean_data_for_sql(df):
             except:
                 pass
     
+    logging.info("Data cleaning for SQL completed successfully")
     return df
 
 @error_handling_wrapper
 def get_table_info(df):
     """ดึงข้อมูลตารางจาก DataFrame"""
     try:
+        logging.info("Starting to extract table information")
         # รับค่าที่ไม่ใช่ null แรกสำหรับข้อมูลตาราง
         table_info = {
             'code': df['TableCode'].iloc[0] if not df['TableCode'].isna().all() else '',

@@ -90,13 +90,10 @@ def main(progress_callback=None):
         if progress_callback:
             config['progress_callback'] = progress_callback
 
-        logging.basicConfig(
-            level=getattr(logging, config.get('log_level', 'INFO')),
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('app.log'),
-                logging.StreamHandler()
-            ]
+        # Update to use new logging setup
+        from log import setup_logging
+        setup_logging(
+            log_level=getattr(logging, config.get('log_level', 'INFO'))
         )
 
         if not config['file_path']:

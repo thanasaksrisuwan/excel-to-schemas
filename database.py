@@ -45,11 +45,11 @@ def create_sql_table(connection, table_name, schema, table_info):
             pk_constraint = f"CONSTRAINT [PK_{table_name}] PRIMARY KEY ({','.join(pk_cols)})"
             columns.append(pk_constraint)
     
-    create_table_query = f"""
-    CREATE TABLE [{table_name}] (
-        {','.join(columns)}
+    create_table_query = (
+        f"""CREATE TABLE {table_name} (
+            {','.join(columns)}
+        );"""
     )
-    """
     
     logging.info(f"Creating table with query: {create_table_query}")
     cursor.execute(create_table_query)
