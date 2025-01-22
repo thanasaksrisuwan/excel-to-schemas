@@ -182,12 +182,19 @@ def generate_schema(df: pd.DataFrame) -> str:
         'float': 'FLOAT',
         'bit': 'BIT'
     }
+    
+    primary_keys = df[df['Key'].str.upper() == 'PK']['Name'].tolist() if not df['Key'].isna().all() else []
+    
     for _, row in df.iterrows():
         if pd.isna(row['Name']) or row['Name'] == 'TableName' or row['Name'] in non_sql_columns:
             continue
             
         column_name = re.sub(r'[^a-zA-Z0-9_]', '', str(row['Name']))
         sql_type = type_mapping.get(str(row['Type']).lower(), 'NVARCHAR')
+        
+        # Check if column is a primary key and numeric type for IDENTITY
+        is_pk = str(row['Key']).upper() == 'PK'
+        is_numeric = sql_type in ['INT', 'BIGINT']
         
         # Parse length and decimal precision
         if pd.isna(row['Len']) and pd.isna(row['Dec']):
@@ -200,8 +207,12 @@ def generate_schema(df: pd.DataFrame) -> str:
         # Build column definition
         column_def = [f"[{column_name}]", sql_type]
         
+        # Add IDENTITY for primary key if it's a numeric type
+        if is_pk and is_numeric and len(primary_keys) == 1:
+            column_def.append("IDENTITY(1,1)")
+        
         # Add NULL/NOT NULL constraint
-        is_nullable = str(row['Nul']).upper() == 'Y'
+        is_nullable = str(row['Nul']).upper() == 'Y' and not is_pk
         column_def.append('NULL' if is_nullable else 'NOT NULL')
         
         # Handle default value
@@ -219,6 +230,11 @@ def generate_schema(df: pd.DataFrame) -> str:
     
     # Add columns to SQL
     sql_parts.append(',\n'.join(columns))
+    
+    # Add primary key constraint if there are primary keys and not using IDENTITY
+    if primary_keys and not (len(primary_keys) == 1 and is_numeric):
+        pk_columns = [f"[{pk}]" for pk in primary_keys]
+        sql_parts.append(f",\n    CONSTRAINT [PK_{table_info['name']}] PRIMARY KEY ({', '.join(pk_columns)})")
     
     sql_parts.append(");")
     
