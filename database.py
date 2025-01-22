@@ -37,13 +37,26 @@ def create_sql_table(connection, table_name, schema, table_info):
             col = col + "_col"
         safe_schema[col] = dtype
 
-    columns = [f"[{col}] {dtype}" for col, dtype in safe_schema.items()]
+    # Identify primary key and numeric type columns
+    pk_columns = table_info.get('primary_keys', []) if table_info else []
+    columns = []
+    identity_column = None
     
-    if table_info and table_info.get('primary_keys'):
-        pk_cols = [f"[{col}]" for col in table_info['primary_keys']]
-        if pk_cols:
-            pk_constraint = f"CONSTRAINT [PK_{table_name}] PRIMARY KEY ({','.join(pk_cols)})"
-            columns.append(pk_constraint)
+    for col, dtype in safe_schema.items():
+        col_def = f"[{col}] {dtype}"
+        # Check if column is a single numeric primary key
+        if (col in pk_columns and len(pk_columns) == 1 and 
+            any(numeric_type in dtype.upper() for numeric_type in ['INT', 'BIGINT'])):
+            # Add IDENTITY specification
+            col_def = col_def.replace(dtype, f"{dtype} IDENTITY(1,1)")
+            identity_column = col
+        columns.append(col_def)
+    
+    # Add primary key constraint if specified
+    if pk_columns:
+        pk_cols = [f"[{col}]" for col in pk_columns]
+        pk_constraint = f"CONSTRAINT [PK_{table_name}] PRIMARY KEY ({','.join(pk_cols)})"
+        columns.append(pk_constraint)
     
     create_table_query = (
         f"""CREATE TABLE {table_name} (
@@ -54,6 +67,7 @@ def create_sql_table(connection, table_name, schema, table_info):
     logging.info(f"Creating table with query: {create_table_query}")
     cursor.execute(create_table_query)
     
+    # Add table description if available
     if table_info and table_info.get('description'):
         try:
             desc_query = f"""
@@ -69,6 +83,7 @@ def create_sql_table(connection, table_name, schema, table_info):
     
     connection.commit()
     logging.info(f"Table '{table_name}' created successfully!")
+    return identity_column
 
 @error_handling_wrapper
 def insert_data_into_table(connection, table_name, df, batch_size=1000, progress_callback=None):
@@ -77,8 +92,25 @@ def insert_data_into_table(connection, table_name, df, batch_size=1000, progress
     cursor = connection.cursor()
     df = clean_data_for_sql(df)  # Clean data before insertion
     
-    columns = ", ".join([f"[{col}]" for col in df.columns])
-    placeholders = ", ".join(["?" for _ in df.columns])
+    # Skip identity column in insert if it exists
+    identity_cols = []
+    try:
+        cursor.execute(f"""
+            SELECT column_name
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = '{table_name}'
+            AND COLUMNPROPERTY(OBJECT_ID(TABLE_NAME), COLUMN_NAME, 'IsIdentity') = 1
+        """)
+        identity_cols = [row[0] for row in cursor.fetchall()]
+    except Exception as e:
+        logging.warning(f"Could not check for identity columns: {e}")
+
+    # Filter out identity columns from insert
+    insert_columns = [col for col in df.columns if col not in identity_cols]
+    df_insert = df[insert_columns]
+    
+    columns = ", ".join([f"[{col}]" for col in insert_columns])
+    placeholders = ", ".join(["?" for _ in insert_columns])
     insert_query = f"INSERT INTO [{table_name}] ({columns}) VALUES ({placeholders})"
     
     connection.autocommit = False
